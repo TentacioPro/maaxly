@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import StudentDashboard from '../components/StudentDashboard'
 import EmployerDashboard from '../components/EmployerDashboard'
 
@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState(null)
+  const location = useLocation()
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -48,7 +49,7 @@ export default function DashboardPage() {
   if (!profile) return <div style={{ padding: 24 }}>No profile found.</div>
 
   if (profile.role === 'student') return <StudentDashboard profile={profile} />
-  if (profile.role === 'employer') return <EmployerDashboard profile={profile} />
+  if (profile.role === 'employer') return <EmployerDashboard profile={profile} fromCreate={location.state?.fromCreate} />
 
   return <div style={{ padding: 24 }}>Unknown profile role.</div>
 }

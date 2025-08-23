@@ -7,6 +7,8 @@ import User from './models/User.js'
 import StudentProfile from './models/StudentProfile.js'
 import EmployerProfile from './models/EmployerProfile.js'
 import Opportunity from './models/Opportunity.js'
+import Application from './models/Application.js'
+import AdminProfile from './models/AdminProfile.js'
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -101,6 +103,22 @@ function authMiddleware(req, res, next) {
     console.error('[authMiddleware] Invalid token:', err && err.message)
     return res.status(401).json({ message: 'Invalid token' })
   }
+}
+
+// adminRequired middleware: ensures user is authenticated and isAdmin === true
+function adminRequired(req, res, next) {
+  // reuse authMiddleware to validate token and set req.userId
+  authMiddleware(req, res, async () => {
+    try {
+      const requester = await User.findById(req.userId)
+      if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+      if (!requester.isAdmin) return res.status(403).json({ message: 'Forbidden: admin only' })
+      return next()
+    } catch (err) {
+      console.error('[adminRequired] error:', err && err.message)
+      return res.status(500).json({ message: 'Server error' })
+    }
+  })
 }
 
 // Legacy profile endpoint removed; use /api/profile/student or /api/profile/employer
@@ -256,6 +274,130 @@ app.post('/api/opportunities', authMiddleware, async (req, res) => {
     const opp = new Opportunity(oppData)
     await opp.save()
     res.status(201).json({ success: true, opportunity: opp })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET single opportunity by id (public)
+app.get('/api/opportunities/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const opp = await Opportunity.findById(id).lean()
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    res.json({ success: true, opportunity: opp })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET applicants for an opportunity (protected, only owner or admin)
+app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const opp = await Opportunity.findById(id)
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+
+    // only the opportunity owner or admin can see applicants
+    const requester = await User.findById(req.userId)
+    if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+    if (String(opp.owner) !== String(req.userId) && requester.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+
+    const applications = await Application.find({ opportunity: id }).populate('applicant', 'email').lean()
+    res.json({ success: true, applicants: applications })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Apply adminRequired middleware to all /api/admin routes
+app.use('/api/admin', adminRequired)
+
+// Admin profile endpoints (admin-only)
+app.get('/api/admin/profile', async (req, res) => {
+  try {
+  const profile = await AdminProfile.findOne({ userId: req.userId }).lean()
+  if (!profile) return res.status(404).json({ message: 'Admin profile not found' })
+  res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.get('/api/admin/profile/:userId', async (req, res) => {
+  try {
+  const { userId } = req.params
+  const profile = await AdminProfile.findOne({ userId }).lean()
+  if (!profile) return res.status(404).json({ message: 'Admin profile not found' })
+  res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.post('/api/admin/profile', async (req, res) => {
+  try {
+  const { displayName, title, phone, avatarUrl, permissions, notes } = req.body
+    const update = { displayName, title, phone, avatarUrl, permissions: Array.isArray(permissions) ? permissions : [], notes }
+
+    const profile = await AdminProfile.findOneAndUpdate(
+      { userId: req.userId },
+      { $set: update, $setOnInsert: { userId: req.userId } },
+      { new: true, upsert: true }
+    )
+
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Admin: list all users
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await User.find().select('email role isAdmin').lean()
+    res.json({ success: true, users })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Admin: stats endpoint
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments()
+    const totalStudents = await User.countDocuments({ role: 'student' })
+    const totalEmployers = await User.countDocuments({ role: 'employer' })
+    const totalOpportunities = await Opportunity.countDocuments()
+
+    res.json({ success: true, stats: { totalUsers, totalStudents, totalEmployers, totalOpportunities } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// POST create application (student applies to an opportunity)
+app.post('/api/applications', authMiddleware, async (req, res) => {
+  try {
+    const applicantId = req.userId
+    if (!applicantId) return res.status(401).json({ message: 'Unauthorized' })
+
+    const { opportunityId, coverLetter } = req.body
+    if (!opportunityId) return res.status(400).json({ message: 'opportunityId is required' })
+
+    const opp = await Opportunity.findById(opportunityId)
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+
+    // Prevent duplicate application by same applicant for same opportunity
+    const exists = await Application.findOne({ opportunity: opportunityId, applicant: applicantId })
+    if (exists) return res.status(409).json({ message: 'You have already applied to this opportunity' })
+
+    const appDoc = new Application({ opportunity: opportunityId, applicant: applicantId, coverLetter })
+    await appDoc.save()
+
+    res.status(201).json({ success: true, application: appDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }

@@ -1,37 +1,32 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 
-export default function AuthForm() {
+export default function AuthForm({ mode = 'login', onAuth }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSignup = async (e) => {
-    e.preventDefault()
-    setMessage(null)
-    setLoading(true)
-    try {
-  const res = await axios.post('/api/auth/signup', { email, password })
-  // store token for later authenticated requests
-  if (res.data?.token) localStorage.setItem('token', res.data.token)
-  setMessage({ type: 'success', text: 'Signed up: ' + (res.data.user?.email || '') })
-    } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || err.message })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login'
+  const submitLabel = mode === 'signup' ? 'Sign Up' : 'Login'
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setMessage(null)
     setLoading(true)
     try {
-  const res = await axios.post('/api/auth/login', { email, password })
-  // store token for later authenticated requests
-  if (res.data?.token) localStorage.setItem('token', res.data.token)
-  setMessage({ type: 'success', text: 'Logged in: ' + (res.data.user?.email || '') })
+      const res = await axios.post(endpoint, { email, password })
+      if (res.data?.token) {
+        localStorage.setItem('token', res.data.token)
+        axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
+      }
+      // If server returns user role or profile type, pass it upstream
+      if (onAuth) {
+        // prefer res.data.user.role, fallback to res.data.type (from profile/me) if available
+        const role = res.data?.user?.role || res.data?.type || null
+        onAuth({ user: res.data?.user, token: res.data?.token, role })
+      }
+      setMessage({ type: 'success', text: `${submitLabel} successful` })
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || err.message })
     } finally {
@@ -40,7 +35,7 @@ export default function AuthForm() {
   }
 
   return (
-    <form className="auth-form" onSubmit={(e) => e.preventDefault()} style={{ maxWidth: 420 }}>
+    <form className="auth-form" onSubmit={handleSubmit} style={{ maxWidth: 420 }}>
       <div style={{ marginBottom: 8 }}>
         <label style={{ display: 'block', fontSize: 14 }}>Email</label>
         <input
@@ -66,11 +61,8 @@ export default function AuthForm() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button onClick={handleSignup} disabled={loading} type="button">
-          Sign Up
-        </button>
-        <button onClick={handleLogin} disabled={loading} type="button">
-          Login
+        <button disabled={loading} type="submit">
+          {submitLabel}
         </button>
       </div>
 

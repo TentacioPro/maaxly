@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 
-export default function EmployerDashboard({ profile }) {
+export default function EmployerDashboard({ profile, fromCreate }) {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -25,7 +25,7 @@ export default function EmployerDashboard({ profile }) {
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [fromCreate])
 
   return (
     <div style={{ padding: 24 }}>
@@ -39,11 +39,13 @@ export default function EmployerDashboard({ profile }) {
         {!loading && !error && (
           <div style={{ display: 'grid', gap: 12 }}>
             {listings.map(o => (
-              <div key={o._id || o.id} style={{ padding: 12, border: '1px solid #ccc', borderRadius: 6 }}>
-                <strong>{o.title}</strong>
-                <div style={{ color: '#555' }}>{o.description}</div>
-                <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>{o.type}</div>
-              </div>
+              <Link key={o._id || o.id} to={`/dashboard/listing/${o._id || o.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div style={{ padding: 12, border: '1px solid #ccc', borderRadius: 6 }}>
+                  <strong>{o.title}</strong>
+                  <div style={{ color: '#555' }}>{o.description}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>{o.type}</div>
+                </div>
+              </Link>
             ))}
             {listings.length === 0 && <div>No listings yet.</div>}
           </div>
