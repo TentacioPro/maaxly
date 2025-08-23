@@ -86,13 +86,19 @@ app.post('/api/auth/login', async (req, res) => {
 // auth middleware
 function authMiddleware(req, res, next) {
   const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Missing token' })
+  // debug: log the raw Authorization header (helps diagnose PowerShell/curl header formatting issues)
+  console.log('[authMiddleware] Authorization header:', auth)
+  if (!auth || !auth.startsWith('Bearer ')) {
+    console.warn('[authMiddleware] Missing or malformed Authorization header')
+    return res.status(401).json({ message: 'Missing token' })
+  }
   const token = auth.slice(7)
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
     req.userId = payload.sub
     return next()
   } catch (err) {
+    console.error('[authMiddleware] Invalid token:', err && err.message)
     return res.status(401).json({ message: 'Invalid token' })
   }
 }
@@ -100,14 +106,14 @@ function authMiddleware(req, res, next) {
 // Legacy profile endpoint removed; use /api/profile/student or /api/profile/employer
 
 // Create or update student profile (protected)
-app.post('/api/profile/student', authMiddleware, async (req, res) => {
+async function handleCreateStudentProfile(req, res) {
   try {
-    const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const targetUserId = req.params.userId || req.userId
+    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
+    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
     const { fullName, college, graduationYear, major, skills } = req.body
 
-    // create or update student profile in its own collection
     const update = {
       fullName,
       college,
@@ -116,24 +122,26 @@ app.post('/api/profile/student', authMiddleware, async (req, res) => {
       skills: Array.isArray(skills) ? skills : []
     }
 
-  // create a new student profile document (do not overwrite existing ones)
-  const profileDoc = new StudentProfile({ userId, ...update })
-  await profileDoc.save()
+    const profileDoc = new StudentProfile({ userId: targetUserId, ...update })
+    await profileDoc.save()
 
-  // mark user as completed onboarding
-  await User.findByIdAndUpdate(userId, { hasCompletedOnboarding: true })
+    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
 
-  res.status(201).json({ success: true, profile: profileDoc })
+    res.status(201).json({ success: true, profile: profileDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
-})
+}
+
+app.post('/api/profile/student', authMiddleware, handleCreateStudentProfile)
+app.post('/api/profile/student/:userId', authMiddleware, handleCreateStudentProfile)
 
 // Create or update employer profile (protected)
-app.post('/api/profile/employer', authMiddleware, async (req, res) => {
+async function handleCreateEmployerProfile(req, res) {
   try {
-    const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const targetUserId = req.params.userId || req.userId
+    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
+    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
     const { fullName, companyName, companyWebsite } = req.body
 
@@ -143,18 +151,19 @@ app.post('/api/profile/employer', authMiddleware, async (req, res) => {
       companyWebsite
     }
 
-  // create new employer profile document
-  const profileDoc = new EmployerProfile({ userId, ...update })
-  await profileDoc.save()
+    const profileDoc = new EmployerProfile({ userId: targetUserId, ...update })
+    await profileDoc.save()
 
-  // mark user as completed onboarding
-  await User.findByIdAndUpdate(userId, { hasCompletedOnboarding: true })
+    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
 
-  res.status(201).json({ success: true, profile: profileDoc })
+    res.status(201).json({ success: true, profile: profileDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
-})
+}
+
+app.post('/api/profile/employer', authMiddleware, handleCreateEmployerProfile)
+app.post('/api/profile/employer/:userId', authMiddleware, handleCreateEmployerProfile)
 
 // Onboarding role selection - protected
 app.post('/api/onboarding/role', authMiddleware, async (req, res) => {
@@ -206,11 +215,45 @@ app.get('/api/opportunities', async (req, res) => {
   }
 })
 
-app.post('/api/opportunities', async (req, res) => {
+// Get opportunities owned by the authenticated employer
+app.get('/api/opportunities/my', authMiddleware, async (req, res) => {
   try {
+    const userId = req.userId
+    const items = await Opportunity.find({ owner: userId }).sort({ createdAt: -1 }).lean()
+    res.json({ success: true, opportunities: items })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Add protected endpoint to return only opportunities created by the currently logged-in employer
+app.get('/api/opportunities/my-listings', authMiddleware, async (req, res) => {
+  try {
+    // Find opportunities where the owner matches the authenticated user's id
+    const myListings = await Opportunity.find({ owner: req.userId }).sort({ createdAt: -1 });
+    return res.json(myListings);
+  } catch (err) {
+    console.error('Error fetching my listings:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Replace public creation with protected employer-only creation
+app.post('/api/opportunities', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+
+    const user = await User.findById(userId)
+    if (!user) return res.status(401).json({ message: 'Unauthorized' })
+    if (user.role !== 'employer') return res.status(403).json({ message: 'Forbidden: only employers can create opportunities' })
+
     const { title, description, type } = req.body
     if (!title || !type) return res.status(400).json({ message: 'title and type are required' })
-    const opp = new Opportunity({ title, description, type })
+
+    const oppData = { title, description, type, owner: userId }
+
+    const opp = new Opportunity(oppData)
     await opp.save()
     res.status(201).json({ success: true, opportunity: opp })
   } catch (err) {

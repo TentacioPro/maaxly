@@ -6,6 +6,7 @@ import OpportunitiesPage from './pages/OpportunitiesPage'
 import OnboardingPage from './pages/OnboardingPage'
 import CreateProfileStudent from './pages/CreateStudentProfilePage'
 import CreateProfileEmployer from './pages/CreateEmployerProfilePage'
+import DashboardPage from './pages/DashboardPage'
 import { Navigate } from 'react-router-dom'
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
             />
             <Route path="/create-profile/student" element={<CreateProfileStudent />} />
             <Route path="/create-profile/employer" element={<CreateProfileEmployer />} />
+            <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
           </Routes>
         </main>
       </div>
