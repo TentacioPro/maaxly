@@ -262,9 +262,10 @@ app.post('/api/opportunities', authMiddleware, async (req, res) => {
     const userId = req.userId
     if (!userId) return res.status(401).json({ message: 'Unauthorized' })
 
-    const user = await User.findById(userId)
-    if (!user) return res.status(401).json({ message: 'Unauthorized' })
-    if (user.role !== 'employer') return res.status(403).json({ message: 'Forbidden: only employers can create opportunities' })
+  const user = await User.findById(userId)
+  if (!user) return res.status(401).json({ message: 'Unauthorized' })
+  // allow employers or admins to create opportunities (role-based)
+  if (user.role !== 'employer' && user.role !== 'admin') return res.status(403).json({ message: 'Forbidden: only employers or admins can create opportunities' })
 
     const { title, description, type } = req.body
     if (!title || !type) return res.status(400).json({ message: 'title and type are required' })
@@ -307,6 +308,28 @@ app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) =>
 
     const applications = await Application.find({ opportunity: id }).populate('applicant', 'email').lean()
     res.json({ success: true, applicants: applications })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET current user's applications (students can list their own applications)
+app.get('/api/applications/my', authMiddleware, async (req, res) => {
+  try {
+    const apps = await Application.find({ applicant: req.userId }).lean()
+    res.json({ success: true, applications: apps })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Check whether current user already applied to a specific opportunity
+app.get('/api/applications/check', authMiddleware, async (req, res) => {
+  try {
+    const { opportunityId } = req.query
+    if (!opportunityId) return res.status(400).json({ message: 'opportunityId query param is required' })
+    const exists = await Application.findOne({ opportunity: opportunityId, applicant: req.userId })
+    res.json({ success: true, applied: !!exists })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -397,7 +420,16 @@ app.post('/api/applications', authMiddleware, async (req, res) => {
     const appDoc = new Application({ opportunity: opportunityId, applicant: applicantId, coverLetter })
     await appDoc.save()
 
-    res.status(201).json({ success: true, application: appDoc })
+    // increment applications counter on the opportunity
+    try {
+      await Opportunity.findByIdAndUpdate(opportunityId, { $inc: { applicationsCount: 1 } })
+    } catch (incErr) {
+      console.warn('Failed to increment applicationsCount for opportunity', opportunityId, incErr.message)
+    }
+
+    // return created application and the updated counter
+    const updatedOpp = await Opportunity.findById(opportunityId).lean()
+    res.status(201).json({ success: true, application: appDoc, applicationsCount: updatedOpp?.applicationsCount || 0 })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }

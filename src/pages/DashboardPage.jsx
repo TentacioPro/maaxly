@@ -3,16 +3,19 @@ import axios from 'axios'
 import { Navigate, useLocation } from 'react-router-dom'
 import StudentDashboard from '../components/StudentDashboard'
 import EmployerDashboard from '../components/EmployerDashboard'
+import { useToast } from '../components/ui/toast'
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState(null)
+  const toast = useToast()
   const location = useLocation()
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
+      // unauthenticated — redirect to home
       setError('unauthenticated')
       setLoading(false)
       return
@@ -22,12 +25,16 @@ export default function DashboardPage() {
     async function load() {
       setLoading(true)
       try {
-        const res = await axios.get('/api/profile/me', { headers: { Authorization: `Bearer ${token}` } })
-        if (cancelled) return
-        setProfile(res.data.profile)
+  const res = await axios.get('/api/profile/me', { headers: { Authorization: `Bearer ${token}` } })
+  if (cancelled) return
+  // server returns { success: true, profile, type }
+  const profileObj = res.data.profile || {}
+  if (res?.data?.type) profileObj.role = res.data.type
+  setProfile(profileObj)
       } catch (err) {
         if (cancelled) return
-        setError(err.response?.data?.message || err.message)
+        const msg = err.response?.data?.message || err.message
+        toast.push({ title: 'Load failed', description: msg, variant: 'destructive' })
       } finally {
         if (!cancelled) setLoading(false)
       }

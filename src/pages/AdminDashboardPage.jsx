@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
+import { useToast } from '../components/ui/toast'
 
   export default function AdminDashboardPage() {
     const [users, setUsers] = useState([])
     const [stats, setStats] = useState(null)
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(null)
+  const [error, setError] = useState(null)
+  const toast = useToast()
 
     useEffect(() => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       if (!token) {
-        setError('Missing token')
+        toast.push({ title: 'Missing token', description: 'You must be logged in', variant: 'destructive' })
         setLoading(false)
         return
       }
@@ -36,9 +38,9 @@ import axios from 'axios'
         } catch (err) {
           if (cancelled) return
           const msg = err.response?.data?.message || err.message
-          if (err.response?.status === 401) setError('Missing or invalid token')
-          else if (err.response?.status === 403) setError('Access denied: admin only')
-          else setError(msg)
+          if (err.response?.status === 401) toast.push({ title: 'Missing token', description: 'Missing or invalid token', variant: 'destructive' })
+          else if (err.response?.status === 403) toast.push({ title: 'Access denied', description: 'Admin only', variant: 'destructive' })
+          else toast.push({ title: 'Load failed', description: msg, variant: 'destructive' })
         } finally {
           if (!cancelled) setLoading(false)
         }

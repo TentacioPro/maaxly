@@ -2,6 +2,10 @@ import React, { useState } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import CreatableSelect from 'react-select/creatable'
+import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card'
+import { Input, Label } from '../components/ui/input'
+import { Button } from '../components/ui/button'
+import { useToast } from '../components/ui/toast'
 
 export default function CreateStudentProfilePage() {
   const navigate = useNavigate()
@@ -13,6 +17,7 @@ export default function CreateStudentProfilePage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
   const [errors, setErrors] = useState({})
+  const toast = useToast()
 
   function validate() {
     const e = {}
@@ -22,7 +27,6 @@ export default function CreateStudentProfilePage() {
       if (Number.isNaN(yr)) e.graduationYear = 'Graduation year must be a number.'
       else if (yr < 1900 || yr > 2100) e.graduationYear = 'Graduation year must be between 1900 and 2100.'
     }
-    // optional: require at least one skill
     if (skills.length === 0) e.skills = 'Please add at least one skill.'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -45,13 +49,13 @@ export default function CreateStudentProfilePage() {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
-      await axios.post('/api/profile/student', payload, { headers })
-      setMessage({ type: 'success', text: 'Profile saved.' })
-      setTimeout(() => navigate('/opportunities'), 700)
+  await axios.post('/api/profile/student', payload, { headers })
+  toast.push({ title: 'Profile saved', description: 'Student profile created. Redirecting to dashboard.' })
+  setTimeout(() => navigate('/dashboard'), 700)
     } catch (err) {
       console.error(err)
-      const text = err?.response?.data?.message || err.message || 'Request failed.'
-      setMessage({ type: 'error', text })
+  const text = err?.response?.data?.message || err.message || 'Request failed.'
+  toast.push({ title: 'Save failed', description: text, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -60,76 +64,59 @@ export default function CreateStudentProfilePage() {
   const selectValue = skills.map(s => ({ label: s, value: s }))
 
   return (
-    <div style={{ maxWidth: 720, margin: '24px auto', padding: 12 }}>
-      <h2>Create Student Profile</h2>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>Full name</label>
-          <br />
-          <input
-            type="text"
-            value={fullName}
-            onChange={e => setFullName(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-          />
-          {errors.fullName && <div style={{ color: 'crimson' }}>{errors.fullName}</div>}
-        </div>
+    <div style={{ maxWidth: 980, margin: '28px auto', padding: '0 12px' }}>
+      <Card className="w-full" style={{ padding: 20, minWidth: 520 }}>
+        <CardHeader>
+          <h2 className="text-lg font-semibold">Create Student Profile</h2>
+        </CardHeader>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>College</label>
-          <br />
-          <input
-            type="text"
-            value={college}
-            onChange={e => setCollege(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="fullName">Full name</Label>
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full max-w-2xl" />
+              {errors.fullName && <div className="text-destructive">{errors.fullName}</div>}
+            </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Graduation year</label>
-          <br />
-          <input
-            type="number"
-            value={graduationYear}
-            onChange={e => setGraduationYear(e.target.value)}
-            style={{ width: 200, padding: 8 }}
-          />
-          {errors.graduationYear && <div style={{ color: 'crimson' }}>{errors.graduationYear}</div>}
-        </div>
+            <div>
+              <Label htmlFor="college">College</Label>
+              <Input id="college" value={college} onChange={e => setCollege(e.target.value)} className="w-full max-w-2xl" />
+            </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Major</label>
-          <br />
-          <input
-            type="text"
-            value={major}
-            onChange={e => setMajor(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-          />
-        </div>
+            <div>
+              <Label htmlFor="graduationYear">Graduation year</Label>
+              <Input id="graduationYear" type="number" value={graduationYear} onChange={e => setGraduationYear(e.target.value)} className="w-48" />
+              {errors.graduationYear && <div className="text-destructive">{errors.graduationYear}</div>}
+            </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Skills</label>
-          <CreatableSelect
-            isMulti
-            onChange={items => setSkills(items ? items.map(i => i.value) : [])}
-            value={selectValue}
-            placeholder="Add skills..."
-          />
-          {errors.skills && <div style={{ color: 'crimson' }}>{errors.skills}</div>}
-        </div>
+            <div>
+              <Label htmlFor="major">Major</Label>
+              <Input id="major" value={major} onChange={e => setMajor(e.target.value)} className="w-full max-w-2xl" />
+            </div>
 
-        <div style={{ marginTop: 16 }}>
-          <button type="submit" disabled={loading} style={{ padding: '10px 16px' }}>
-            {loading ? 'Saving...' : 'Save profile'}
-          </button>
-        </div>
-      </form>
+            <div>
+              <Label>Skills</Label>
+              <div className="w-full">
+                <CreatableSelect
+                  isMulti
+                  onChange={items => setSkills(items ? items.map(i => i.value) : [])}
+                  value={selectValue}
+                  placeholder="Add skills..."
+                />
+              </div>
+              {errors.skills && <div className="text-destructive">{errors.skills}</div>}
+            </div>
 
-      {message && (
-        <div style={{ marginTop: 12, color: message.type === 'error' ? 'crimson' : 'green' }}>{message.text}</div>
-      )}
+            {message && <div className={`${message.type === 'error' ? 'text-destructive' : 'text-green-600'}`}>{message.text}</div>}
+          </CardContent>
+
+      <CardFooter>
+            <div className="flex justify-end w-full">
+              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save profile'}</Button>
+            </div>
+          </CardFooter>
+        </form>
+    </Card>
     </div>
   )
 }

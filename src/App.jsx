@@ -1,5 +1,7 @@
 import './App.css'
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
+import MainLayout from './components/MainLayout'
+import { ToasterProvider } from './components/ui/toast'
 import Home from './pages/Home'
 import About from './pages/About'
 import OpportunitiesPage from './pages/OpportunitiesPage'
@@ -16,6 +18,8 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ListingDetailsPage from './pages/ListingDetailsPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
+ import ProfileViewPage from './pages/ProfileViewPage'
+import CompanyDetailsPage from './pages/CompanyDetailsPage'
 
 function App() {
   const [role, setRole] = useState(null) // 'student' | 'employer' | null
@@ -56,16 +60,17 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
-        <TopNav role={role} setRole={setRole} />
-        <main>
-          <Routes>
+      <ToasterProvider>
+        <div className="App">
+          <MainLayout>
+            <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
             <Route path="/login" element={<LoginPage setRole={setRole} />} />
             <Route path="/signup" element={<SignupPage setRole={setRole} />} />
+            <Route path="/profile" element={<ProfileViewPage />} />
 
             <Route
               path="/onboarding"
@@ -79,14 +84,16 @@ function App() {
             <Route path="/create-profile/student" element={<CreateProfileStudent />} />
             <Route path="/create-profile/employer" element={<CreateProfileEmployer />} />
 
-            <Route path="/create-opportunity" element={<Protected><CreateOpportunityPage /></Protected>} />
+            <Route path="/create-opportunity" element={<RequireRole allowed={["employer"]}><CreateOpportunityPage /></RequireRole>} />
 
             <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
             <Route path="/dashboard/listing/:id" element={<Protected><ListingDetailsPage /></Protected>} />
+            <Route path="/company/:id" element={<CompanyDetailsPage />} />
             <Route path="/admin" element={<Protected><AdminDashboardPage /></Protected>} />
-          </Routes>
-        </main>
-      </div>
+            </Routes>
+          </MainLayout>
+        </div>
+      </ToasterProvider>
     </Router>
   )
 }
@@ -105,7 +112,7 @@ function TopNav({ role, setRole }) {
   }
 
   return (
-    <nav className="App-nav" style={{ padding: 12, borderBottom: '1px solid #eee', marginBottom: 12 }}>
+    <nav className="App-nav" style={{ padding: 12, borderBottom: '1px solid #eee', marginBottom: 12, justifyContent:"center" }}>
       <Link to="/">Home</Link>
       {' | '}
       <Link to="/opportunities">Opportunities</Link>
@@ -149,8 +156,23 @@ function TopNav({ role, setRole }) {
 
 function Protected({ children }) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-  if (!token) return <Navigate to="/" replace />
+  if (!token) return <Navigate to="/login" replace />
   return children
+}
+
+// RequireRole: wrapper that ensures user is authenticated and has one of the allowed roles
+function RequireRole({ allowed = [], children }) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+  if (!token) return <Navigate to="/login" replace />
+  // admins should always be allowed
+  if (role && allowed.includes(role)) return children
+  try {
+    const storedIsAdmin = localStorage.getItem('isAdmin')
+    if (storedIsAdmin === 'true') return children
+  } catch (e) {}
+  // fallback: deny access
+  return <Navigate to="/" replace />
 }
 
 export default App
