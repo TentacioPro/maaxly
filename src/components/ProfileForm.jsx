@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Card, CardHeader, CardContent, CardFooter } from './ui/card'
+import { Input, Label } from './ui/input'
+import { Button } from './ui/button'
 
 export default function ProfileForm() {
   const navigate = useNavigate()
@@ -17,27 +20,42 @@ export default function ProfileForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginTop: 16, maxWidth: 480 }}>
-      <h3>Your Profile</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label>Full Name</label>
-        <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ width: '100%', padding: 8 }} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Role</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', padding: 8 }}>
-          <option value="student">Student</option>
-          <option value="employer">Employer</option>
-        </select>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Bio</label>
-        <textarea value={bio} onChange={(e) => setBio(e.target.value)} style={{ width: '100%', padding: 8 }} />
-      </div>
-      <div>
-        <button type="submit" disabled={loading}>Save Profile</button>
-      </div>
-      {message && <div style={{ marginTop: 8, color: message.type === 'error' ? 'crimson' : 'green' }}>{message.text}</div>}
-    </form>
+    <div className="max-w-lg mx-auto mt-6">
+      <Card>
+        <CardHeader>
+          <h3 className="text-lg font-semibold">Your Profile</h3>
+        </CardHeader>
+
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="fullName">Full name</Label>
+              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+
+            <div>
+              <Label htmlFor="role">Role</Label>
+              <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-md border p-2">
+                <option value="student">Student</option>
+                <option value="employer">Employer</option>
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="bio">Bio</Label>
+              <textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} className="w-full rounded-md border p-2" rows={4} />
+            </div>
+          </CardContent>
+
+          <CardFooter>
+            <div className="w-full flex justify-end">
+              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Profile'}</Button>
+            </div>
+          </CardFooter>
+        </form>
+      </Card>
+
+      {message && <div className={`mt-3 ${message.type === 'error' ? 'text-destructive' : 'text-green-600'}`}>{message.text}</div>}
+    </div>
   )
 }

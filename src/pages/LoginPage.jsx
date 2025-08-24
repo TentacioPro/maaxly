@@ -1,8 +1,31 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import LoginForm from '../components/LoginForm'
 
-export default function Home() {
+export default function LoginPage({ setRole }) {
+  const navigate = useNavigate()
+
+  const onAuth = async ({ user, token, role }) => {
+    // if role provided by response, set it; otherwise try fetch profile
+    if (role) {
+      setRole(role)
+      localStorage.setItem('role', role)
+    } else {
+      try {
+        const res = await axios.get('/api/profile/me')
+        if (res?.data?.type) {
+          setRole(res.data.type)
+          localStorage.setItem('role', res.data.type)
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    navigate('/dashboard')
+  }
+
   return (
     <div className="container grid min-h-[calc(100svh-48px)] max-w-none items-center justify-center">
       <div className="mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-[480px] sm:p-8">
@@ -20,7 +43,7 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoginForm />
+            <LoginForm onAuth={onAuth} />
           </CardContent>
           <CardFooter>
             <p className="text-muted-foreground px-8 text-center text-sm">

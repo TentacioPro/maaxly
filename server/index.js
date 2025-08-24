@@ -7,6 +7,8 @@ import User from './models/User.js'
 import StudentProfile from './models/StudentProfile.js'
 import EmployerProfile from './models/EmployerProfile.js'
 import Opportunity from './models/Opportunity.js'
+import Application from './models/Application.js'
+import AdminProfile from './models/AdminProfile.js'
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -86,28 +88,50 @@ app.post('/api/auth/login', async (req, res) => {
 // auth middleware
 function authMiddleware(req, res, next) {
   const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Missing token' })
+  // debug: log the raw Authorization header (helps diagnose PowerShell/curl header formatting issues)
+  console.log('[authMiddleware] Authorization header:', auth)
+  if (!auth || !auth.startsWith('Bearer ')) {
+    console.warn('[authMiddleware] Missing or malformed Authorization header')
+    return res.status(401).json({ message: 'Missing token' })
+  }
   const token = auth.slice(7)
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
     req.userId = payload.sub
     return next()
   } catch (err) {
+    console.error('[authMiddleware] Invalid token:', err && err.message)
     return res.status(401).json({ message: 'Invalid token' })
   }
+}
+
+// adminRequired middleware: ensures user is authenticated and isAdmin === true
+function adminRequired(req, res, next) {
+  // reuse authMiddleware to validate token and set req.userId
+  authMiddleware(req, res, async () => {
+    try {
+      const requester = await User.findById(req.userId)
+      if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+      if (!requester.isAdmin) return res.status(403).json({ message: 'Forbidden: admin only' })
+      return next()
+    } catch (err) {
+      console.error('[adminRequired] error:', err && err.message)
+      return res.status(500).json({ message: 'Server error' })
+    }
+  })
 }
 
 // Legacy profile endpoint removed; use /api/profile/student or /api/profile/employer
 
 // Create or update student profile (protected)
-app.post('/api/profile/student', authMiddleware, async (req, res) => {
+async function handleCreateStudentProfile(req, res) {
   try {
-    const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const targetUserId = req.params.userId || req.userId
+    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
+    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
     const { fullName, college, graduationYear, major, skills } = req.body
 
-    // create or update student profile in its own collection
     const update = {
       fullName,
       college,
@@ -116,24 +140,26 @@ app.post('/api/profile/student', authMiddleware, async (req, res) => {
       skills: Array.isArray(skills) ? skills : []
     }
 
-  // create a new student profile document (do not overwrite existing ones)
-  const profileDoc = new StudentProfile({ userId, ...update })
-  await profileDoc.save()
+    const profileDoc = new StudentProfile({ userId: targetUserId, ...update })
+    await profileDoc.save()
 
-  // mark user as completed onboarding
-  await User.findByIdAndUpdate(userId, { hasCompletedOnboarding: true })
+    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
 
-  res.status(201).json({ success: true, profile: profileDoc })
+    res.status(201).json({ success: true, profile: profileDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
-})
+}
+
+app.post('/api/profile/student', authMiddleware, handleCreateStudentProfile)
+app.post('/api/profile/student/:userId', authMiddleware, handleCreateStudentProfile)
 
 // Create or update employer profile (protected)
-app.post('/api/profile/employer', authMiddleware, async (req, res) => {
+async function handleCreateEmployerProfile(req, res) {
   try {
-    const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const targetUserId = req.params.userId || req.userId
+    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
+    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
     const { fullName, companyName, companyWebsite } = req.body
 
@@ -143,18 +169,19 @@ app.post('/api/profile/employer', authMiddleware, async (req, res) => {
       companyWebsite
     }
 
-  // create new employer profile document
-  const profileDoc = new EmployerProfile({ userId, ...update })
-  await profileDoc.save()
+    const profileDoc = new EmployerProfile({ userId: targetUserId, ...update })
+    await profileDoc.save()
 
-  // mark user as completed onboarding
-  await User.findByIdAndUpdate(userId, { hasCompletedOnboarding: true })
+    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
 
-  res.status(201).json({ success: true, profile: profileDoc })
+    res.status(201).json({ success: true, profile: profileDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
-})
+}
+
+app.post('/api/profile/employer', authMiddleware, handleCreateEmployerProfile)
+app.post('/api/profile/employer/:userId', authMiddleware, handleCreateEmployerProfile)
 
 // Onboarding role selection - protected
 app.post('/api/onboarding/role', authMiddleware, async (req, res) => {
@@ -206,13 +233,203 @@ app.get('/api/opportunities', async (req, res) => {
   }
 })
 
-app.post('/api/opportunities', async (req, res) => {
+// Get opportunities owned by the authenticated employer
+app.get('/api/opportunities/my', authMiddleware, async (req, res) => {
   try {
+    const userId = req.userId
+    const items = await Opportunity.find({ owner: userId }).sort({ createdAt: -1 }).lean()
+    res.json({ success: true, opportunities: items })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Add protected endpoint to return only opportunities created by the currently logged-in employer
+app.get('/api/opportunities/my-listings', authMiddleware, async (req, res) => {
+  try {
+    // Find opportunities where the owner matches the authenticated user's id
+    const myListings = await Opportunity.find({ owner: req.userId }).sort({ createdAt: -1 });
+    return res.json(myListings);
+  } catch (err) {
+    console.error('Error fetching my listings:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Replace public creation with protected employer-only creation
+app.post('/api/opportunities', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+
+  const user = await User.findById(userId)
+  if (!user) return res.status(401).json({ message: 'Unauthorized' })
+  // allow employers or admins to create opportunities (role-based)
+  if (user.role !== 'employer' && user.role !== 'admin') return res.status(403).json({ message: 'Forbidden: only employers or admins can create opportunities' })
+
     const { title, description, type } = req.body
     if (!title || !type) return res.status(400).json({ message: 'title and type are required' })
-    const opp = new Opportunity({ title, description, type })
+
+    const oppData = { title, description, type, owner: userId }
+
+    const opp = new Opportunity(oppData)
     await opp.save()
     res.status(201).json({ success: true, opportunity: opp })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET single opportunity by id (public)
+app.get('/api/opportunities/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const opp = await Opportunity.findById(id).lean()
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    res.json({ success: true, opportunity: opp })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET applicants for an opportunity (protected, only owner or admin)
+app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const opp = await Opportunity.findById(id)
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+
+    // only the opportunity owner or admin can see applicants
+    const requester = await User.findById(req.userId)
+    if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+    if (String(opp.owner) !== String(req.userId) && requester.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+
+    const applications = await Application.find({ opportunity: id }).populate('applicant', 'email').lean()
+    res.json({ success: true, applicants: applications })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET current user's applications (students can list their own applications)
+app.get('/api/applications/my', authMiddleware, async (req, res) => {
+  try {
+    const apps = await Application.find({ applicant: req.userId }).lean()
+    res.json({ success: true, applications: apps })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Check whether current user already applied to a specific opportunity
+app.get('/api/applications/check', authMiddleware, async (req, res) => {
+  try {
+    const { opportunityId } = req.query
+    if (!opportunityId) return res.status(400).json({ message: 'opportunityId query param is required' })
+    const exists = await Application.findOne({ opportunity: opportunityId, applicant: req.userId })
+    res.json({ success: true, applied: !!exists })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Apply adminRequired middleware to all /api/admin routes
+app.use('/api/admin', adminRequired)
+
+// Admin profile endpoints (admin-only)
+app.get('/api/admin/profile', async (req, res) => {
+  try {
+  const profile = await AdminProfile.findOne({ userId: req.userId }).lean()
+  if (!profile) return res.status(404).json({ message: 'Admin profile not found' })
+  res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.get('/api/admin/profile/:userId', async (req, res) => {
+  try {
+  const { userId } = req.params
+  const profile = await AdminProfile.findOne({ userId }).lean()
+  if (!profile) return res.status(404).json({ message: 'Admin profile not found' })
+  res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.post('/api/admin/profile', async (req, res) => {
+  try {
+  const { displayName, title, phone, avatarUrl, permissions, notes } = req.body
+    const update = { displayName, title, phone, avatarUrl, permissions: Array.isArray(permissions) ? permissions : [], notes }
+
+    const profile = await AdminProfile.findOneAndUpdate(
+      { userId: req.userId },
+      { $set: update, $setOnInsert: { userId: req.userId } },
+      { new: true, upsert: true }
+    )
+
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Admin: list all users
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await User.find().select('email role isAdmin').lean()
+    res.json({ success: true, users })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Admin: stats endpoint
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments()
+    const totalStudents = await User.countDocuments({ role: 'student' })
+    const totalEmployers = await User.countDocuments({ role: 'employer' })
+    const totalOpportunities = await Opportunity.countDocuments()
+
+    res.json({ success: true, stats: { totalUsers, totalStudents, totalEmployers, totalOpportunities } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// POST create application (student applies to an opportunity)
+app.post('/api/applications', authMiddleware, async (req, res) => {
+  try {
+    const applicantId = req.userId
+    if (!applicantId) return res.status(401).json({ message: 'Unauthorized' })
+
+    const { opportunityId, coverLetter } = req.body
+    if (!opportunityId) return res.status(400).json({ message: 'opportunityId is required' })
+
+    const opp = await Opportunity.findById(opportunityId)
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+
+    // Prevent duplicate application by same applicant for same opportunity
+    const exists = await Application.findOne({ opportunity: opportunityId, applicant: applicantId })
+    if (exists) return res.status(409).json({ message: 'You have already applied to this opportunity' })
+
+    const appDoc = new Application({ opportunity: opportunityId, applicant: applicantId, coverLetter })
+    await appDoc.save()
+
+    // increment applications counter on the opportunity
+    try {
+      await Opportunity.findByIdAndUpdate(opportunityId, { $inc: { applicationsCount: 1 } })
+    } catch (incErr) {
+      console.warn('Failed to increment applicationsCount for opportunity', opportunityId, incErr.message)
+    }
+
+    // return created application and the updated counter
+    const updatedOpp = await Opportunity.findById(opportunityId).lean()
+    res.status(201).json({ success: true, application: appDoc, applicationsCount: updatedOpp?.applicationsCount || 0 })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }

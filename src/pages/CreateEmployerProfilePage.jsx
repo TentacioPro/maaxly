@@ -1,6 +1,10 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card'
+import { Input, Label } from '../components/ui/input'
+import { Button } from '../components/ui/button'
+import { useToast } from '../components/ui/toast'
 
 export default function CreateEmployerProfilePage() {
   const navigate = useNavigate()
@@ -10,15 +14,25 @@ export default function CreateEmployerProfilePage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
   const [errors, setErrors] = useState({})
+  const toast = useToast()
 
   function validate() {
     const e = {}
     if (!fullName.trim()) e.fullName = 'Full name is required.'
     if (!companyName.trim()) e.companyName = 'Company name is required.'
     if (companyWebsite) {
+      // Accept inputs like "google.com" or multi-level domains like "example.org.in"
+      const normalize = (input) => {
+        const s = input.trim()
+        // add https:// if no scheme present
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return `https://${s}`
+        return s
+      }
+
       try {
-        // eslint-disable-next-line no-new
-        new URL(companyWebsite)
+        const parsed = new URL(normalize(companyWebsite))
+        // hostname must contain at least one dot (e.g. example.com)
+        if (!/\./.test(parsed.hostname)) e.companyWebsite = 'Company website must be a valid domain.'
       } catch (_) {
         e.companyWebsite = 'Company website must be a valid URL.'
       }
@@ -33,72 +47,67 @@ export default function CreateEmployerProfilePage() {
     if (!validate()) return
     setLoading(true)
     try {
-      const payload = { fullName, companyName, companyWebsite }
+      // ensure companyWebsite is sent with a scheme (https://) so backend URL validation passes
+      const ensureScheme = (input) => {
+        if (!input) return ''
+        const s = input.trim()
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return `https://${s}`
+        return s
+      }
+
+      const payload = { fullName, companyName, companyWebsite: companyWebsite ? ensureScheme(companyWebsite) : '' }
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
       await axios.post('/api/profile/employer', payload, { headers })
-      setMessage({ type: 'success', text: 'Employer profile saved.' })
-      setTimeout(() => navigate('/opportunities'), 700)
+  toast.push({ title: 'Profile saved', description: 'Employer profile created. Redirecting to opportunities.' })
+  setTimeout(() => navigate('/opportunities'), 700)
     } catch (err) {
       console.error(err)
       const text = err?.response?.data?.message || err.message || 'Request failed.'
-      setMessage({ type: 'error', text })
+  toast.push({ title: 'Save failed', description: text, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '24px auto', padding: 12 }}>
-      <h2>Create Employer Profile</h2>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>Full name</label>
-          <br />
-          <input
-            type="text"
-            value={fullName}
-            onChange={e => setFullName(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-          />
-          {errors.fullName && <div style={{ color: 'crimson' }}>{errors.fullName}</div>}
-        </div>
+    <div style={{ maxWidth: 980, margin: '28px auto', padding: '0 12px' }}>
+      <Card className="w-full" style={{ padding: 20, minWidth: 520 }}>
+        <CardHeader>
+          <h2 className="text-lg font-semibold">Create Employer Profile</h2>
+        </CardHeader>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Company name</label>
-          <br />
-          <input
-            type="text"
-            value={companyName}
-            onChange={e => setCompanyName(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-          />
-          {errors.companyName && <div style={{ color: 'crimson' }}>{errors.companyName}</div>}
-        </div>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="fullName">Full name</Label>
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full max-w-2xl" />
+              {errors.fullName && <div className="text-destructive">{errors.fullName}</div>}
+            </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Company website</label>
-          <br />
-          <input
-            type="url"
-            value={companyWebsite}
-            onChange={e => setCompanyWebsite(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-            placeholder="https://example.com"
-          />
-          {errors.companyWebsite && <div style={{ color: 'crimson' }}>{errors.companyWebsite}</div>}
-        </div>
+            <div>
+              <Label htmlFor="companyName">Company name</Label>
+              <Input id="companyName" value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full max-w-2xl" />
+              {errors.companyName && <div className="text-destructive">{errors.companyName}</div>}
+            </div>
 
-        <div style={{ marginTop: 16 }}>
-          <button type="submit" disabled={loading} style={{ padding: '10px 16px' }}>
-            {loading ? 'Saving...' : 'Save profile'}
-          </button>
-        </div>
-      </form>
+            <div>
+              <Label htmlFor="companyWebsite">Company website</Label>
+              {/* use text input to avoid native browser URL validation tooltip; we'll validate/normalize ourselves */}
+              <Input id="companyWebsite" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} className="w-full max-w-2xl" placeholder="example.com or https://example.com" />
+              {errors.companyWebsite && <div className="text-destructive">{errors.companyWebsite}</div>}
+            </div>
+          </CardContent>
 
-      {message && (
-        <div style={{ marginTop: 12, color: message.type === 'error' ? 'crimson' : 'green' }}>{message.text}</div>
-      )}
+          <CardFooter>
+            <div className="flex justify-end w-full">
+              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save profile'}</Button>
+            </div>
+          </CardFooter>
+        </form>
+
+  {/* top-level messages shown via toasts */}
+      </Card>
     </div>
   )
 }

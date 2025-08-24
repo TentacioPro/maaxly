@@ -1,68 +1,88 @@
+/* src/index.css */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Hide scrollbars globally while preserving scroll */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Smooth theme transitions */
+html { transition: background-color 0.2s ease, color 0.2s ease; }
+
+/* Design tokens (OKLCH) */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.1363 0.0364 259.2010);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.1363 0.0364 259.2010);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.1363 0.0364 259.2010);
+	--primary: oklch(0.5461 0.2152 262.8809);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.9683 0.0069 247.8956);
+	--secondary-foreground: oklch(0.2077 0.0398 265.7549);
+	--muted: oklch(0.9683 0.0069 247.8956);
+	--muted-foreground: oklch(0.5544 0.0407 257.4166);
+	--accent: oklch(0.9683 0.0069 247.8956);
+	--accent-foreground: oklch(0.2077 0.0398 265.7549);
+	--destructive: oklch(0.6368 0.2078 25.3313);
+	--destructive-foreground: oklch(1 0 0);
+	--border: oklch(0.9288 0.0126 255.5078);
+	--input: oklch(0.9288 0.0126 255.5078);
+	--ring: oklch(0.5461 0.2152 262.8809);
+	--radius: 0.5rem;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.dark {
+	--background: oklch(0.1363 0.0364 259.2010);
+	--foreground: oklch(0.9842 0.0034 247.8575);
+	--card: oklch(0.1363 0.0364 259.2010);
+	--card-foreground: oklch(0.9842 0.0034 247.8575);
+	--popover: oklch(0.1363 0.0364 259.2010);
+	--popover-foreground: oklch(0.9842 0.0034 247.8575);
+	--primary: oklch(0.6231 0.188 259.8145);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.2795 0.0368 260.0310);
+	--secondary-foreground: oklch(0.9842 0.0034 247.8575);
+	--muted: oklch(0.2795 0.0368 260.0310);
+	--muted-foreground: oklch(0.7107 0.0351 256.7878);
+	--accent: oklch(0.2795 0.0368 260.0310);
+	--accent-foreground: oklch(0.9842 0.0034 247.8575);
+	--destructive: oklch(0.3958 0.1331 25.7230);
+	--destructive-foreground: oklch(0.9842 0.0034 247.8575);
+	--border: oklch(0.2795 0.0368 260.0310);
+	--input: oklch(0.2795 0.0368 260.0310);
+	--ring: oklch(0.6231 0.188 259.8145);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* Map tokens so utilities like bg-background and border-border work */
+@theme {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius: var(--radius);
+	--radius-lg: calc(var(--radius) + 4px);
+}
+
+/* Base */
+@layer base {
+	body { @apply bg-background text-foreground antialiased; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+	::selection { @apply bg-primary text-primary-foreground; }
 }
