@@ -3,53 +3,54 @@ import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card'
-import { Label } from '../components/ui/input'
-import DatePicker from '../components/DatePicker'
+import { Card, CardHeader, CardContent } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/ui/select'
 import { useToast } from '../components/ui/toast'
+import OpportunityForm from '@/components/OpportunityForm'
 
 export default function OpportunitiesPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const toast = useToast()
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [type, setType] = useState('job')
-  const [location, setLocation] = useState('')
-  const [applicationDeadline, setApplicationDeadline] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [skillset, setSkillset] = useState('')
+  const [error, setError] = useState(null)
+  const [creating, setCreating] = useState(false)
 
   // ui state
-  const [view, setView] = useState('all') // 'all' | 'my'
+  const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+  const [view, setView] = useState(role === 'employer' ? 'my' : 'all') // 'all' | 'my'
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all') // 'all' | 'job' | 'internship' | 'competition'
   const [sort, setSort] = useState('newest') // 'newest' | 'oldest'
   const [applying, setApplying] = useState({}) // id -> boolean
   const [applied, setApplied] = useState({}) // id -> true
 
-  const fetchItems = async () => {
+  const fetchItems = async (targetView) => {
   setLoading(true)
+    const effectiveView = targetView || view
     try {
-      const url = view === 'my' ? '/api/opportunities/my-listings' : '/api/opportunities'
+  const url = (effectiveView === 'my' && (role === 'employer' || role === 'admin'))
+        ? '/api/opportunities/my-listings'
+        : '/api/opportunities'
       // read token fresh inside fetch so changes (login/logout) are respected
       const localToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      // if requesting 'my' listings and there is no token, show a clear error instead of calling the API with undefined header
-      if (view === 'my' && !localToken) {
+  // if requesting employer/admin 'my' listings and there is no token, show a clear error instead of calling the API with undefined header
+  if (effectiveView === 'my' && (role === 'employer' || role === 'admin') && !localToken) {
         toast.push({ title: 'Missing token', description: 'You must be logged in to view your listings', variant: 'destructive' })
         setItems([])
         setLoading(false)
         return
       }
-      const headers = localToken ? { Authorization: `Bearer ${localToken}` } : undefined
+  // Always pass token if available so server can RBAC-filter when role is employer
+  const headers = localToken ? { Authorization: `Bearer ${localToken}` } : undefined
       const res = await axios.get(url, { headers })
       const payload = Array.isArray(res.data) ? res.data : (res.data.opportunities || [])
       setItems(payload)
-      } catch (err) {
+  } catch (err) {
         const msg = err.response?.data?.message || err.message
         // If public listing call returned 401 Missing token, ignore and show empty list
-        if (err.response?.status === 401 && view !== 'my') {
+  if (err.response?.status === 401 && effectiveView !== 'my') {
           setItems([])
         } else {
           // show error as toast
@@ -87,37 +88,31 @@ export default function OpportunitiesPage() {
   }, [])
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-  const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+  // role read earlier for initial state
   const canCreate = token && (role === 'employer' || role === 'admin')
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  const handleCreate = async (e) => {
-    e.preventDefault()
-  setError(null)
+  const handleCreate = async (payload) => {
+    setError(null)
+    setCreating(true)
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       if (!token) {
-    toast.push({ title: 'Not allowed', description: 'You must be logged in as an employer to create an opportunity', variant: 'destructive' })
-        return
+        toast.push({ title: 'Not allowed', description: 'You must be logged in as an employer to create an opportunity', variant: 'destructive' })
+        return false
       }
-      const payload = { title, description, type }
-      if (location) payload.location = location
-      if (applicationDeadline) payload.applicationDeadline = applicationDeadline
-      if (contactEmail) payload.contactEmail = contactEmail
-      if (skillset) payload.skillset = skillset
       await axios.post('/api/opportunities', payload, { headers: { Authorization: `Bearer ${token}` } })
-      // reset quick-create fields
-      setTitle('')
-      setDescription('')
-      setType('job')
-      setLocation('')
-      setApplicationDeadline('')
-      setContactEmail('')
-      setSkillset('')
+      // refresh listings
       fetchItems()
+      toast.push({ title: 'Opportunity created', description: 'Your listing has been posted.' })
+      return true
     } catch (err) {
-  const msg = err.response?.data?.message || err.message
-  toast.push({ title: 'Create failed', description: msg, variant: 'destructive' })
+      const msg = err.response?.data?.message || err.message
+      toast.push({ title: 'Create failed', description: msg, variant: 'destructive' })
+      setError(msg)
+      throw err
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -129,6 +124,15 @@ export default function OpportunitiesPage() {
     list.sort((a, b) => sort === 'newest' ? new Date(b.createdAt) - new Date(a.createdAt) : new Date(a.createdAt) - new Date(b.createdAt))
     return list
   }, [items, search, typeFilter, sort])
+  
+  // When a student selects "Applied" (view === 'my'), filter to those they applied to
+  const displayedWithView = useMemo(() => {
+    let list = displayed
+    if (role === 'student' && view === 'my') {
+      list = list.filter(it => applied[it._id])
+    }
+    return list
+  }, [displayed, applied, role, view])
 
   const handleApply = async (id) => {
     setApplying(prev => ({ ...prev, [id]: true }))
@@ -188,74 +192,65 @@ export default function OpportunitiesPage() {
     }
   }
 
+  // Persist scroll position and mark when navigating to details, restore on mount
+  useEffect(() => {
+    // Restore scroll only once when coming back
+    const restoreOnce = sessionStorage.getItem('opps:restoreOnce')
+    const saved = sessionStorage.getItem('opps:scrollY')
+    if (restoreOnce && saved) {
+      try { window.scrollTo(0, parseInt(saved, 10) || 0) } catch (e) {}
+      try { sessionStorage.removeItem('opps:restoreOnce') } catch (e) {}
+    }
+    const onBeforeUnload = () => {
+      try { sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0)) } catch (e) {}
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+
   return (
     <div className="w-full md:w-[80%] mx-auto px-3">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-semibold">Opportunities</h2>
-        {canCreate && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => {
+              const target = role === 'employer' ? 'my' : 'all'
+              // adjust current view if needed so UI matches fetch scope
+              if (target !== view) {
+                setView(target)
+              } else {
+                fetchItems(target)
+              }
+            }}
+          >
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </Button>
+          {canCreate && (
           <>
-            <Button size="sm" className="bg-sky-600 text-white" onClick={() => setSheetOpen(true)}>Create Opportunity</Button>
+            <Button size="sm" onClick={() => setSheetOpen(true)}>Create Opportunity</Button>
 
             {sheetOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center">
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSheetOpen(false)} />
-                <Card className="w-full max-w-2xl mx-4 z-60" style={{ minWidth: 520, maxHeight: '90vh', overflow: 'hidden' }}>
-                  <form onSubmit={async (e) => { await handleCreate(e); setSheetOpen(false) }}>
-                    <CardHeader>
-                      <h3 className="text-lg font-semibold">Create Opportunity</h3>
-                    </CardHeader>
-                    <CardContent className="space-y-4" style={{ maxHeight: 'calc(90vh - 160px)', overflowY: 'auto' }}>
-                      <div>
-                        <Label>Title</Label>
-                        <Input value={title} onChange={(e) => setTitle(e.target.value)} required className="w-full" />
-                      </div>
-                      <div>
-                        <Label>Description</Label>
-                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 block w-full rounded-md border px-3 py-2" />
-                      </div>
-                      <div>
-                        <Label>Type</Label>
-                        <select value={type} onChange={(e) => setType(e.target.value)} className="mt-1 block w-full rounded-md border px-3 py-2">
-                          <option value="job">Job</option>
-                          <option value="internship">Internship</option>
-                          <option value="competition">Competition</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <Label>Location</Label>
-                        <Input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full" />
-                      </div>
-
-                      <div>
-                        <Label>Application Deadline</Label>
-                        <div>
-                          <DatePicker value={applicationDeadline} onChange={(v) => setApplicationDeadline(v)} placeholder="Pick a date" />
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label>Contact email</Label>
-                        <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="w-full" placeholder="hr@example.com" />
-                      </div>
-
-                      <div>
-                        <Label>Skillset</Label>
-                        <Input value={skillset} onChange={(e) => setSkillset(e.target.value)} className="w-full" placeholder="Comma separated skills" />
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <div className="flex justify-end w-full gap-2">
-                        <Button type="button" variant="ghost" onClick={() => setSheetOpen(false)}>Cancel</Button>
-                        <Button className="bg-sky-600 text-white" type="submit">Create</Button>
-                      </div>
-                    </CardFooter>
-                  </form>
+                <Card className="w-full max-w-2xl mx-4 z-60 min-w-[520px] h-[90vh] flex flex-col overflow-hidden">
+                  <CardHeader className="py-3 px-4 border-b">
+                    <h3 className="text-lg font-semibold">Create Opportunity</h3>
+                  </CardHeader>
+                  <OpportunityForm
+                    onSubmit={async (payload) => { const ok = await handleCreate(payload); if (ok) setSheetOpen(false) }}
+                    onCancel={() => setSheetOpen(false)}
+                    submitLabel={creating ? 'Creating…' : 'Create'}
+                  />
                 </Card>
               </div>
             )}
           </>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -271,22 +266,37 @@ export default function OpportunitiesPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-2">
-          <Button variant={view === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setView('all')}>All</Button>
-          {canCreate && (
-            <Button variant={view === 'my' ? 'default' : 'outline'} size="sm" onClick={() => setView('my')}>My Listings</Button>
+          {role !== 'employer' && (
+            <Button variant={view === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setView('all')}>All</Button>
+          )}
+          {/* Show "My Listings" for students and admins (authenticated), hide for employers */}
+          {token && role !== 'employer' && (
+            <Button variant={view === 'my' ? 'default' : 'outline'} size="sm" onClick={() => setView('my')}>
+              {role === 'student' ? 'Applied' : 'My Listings'}
+            </Button>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-            <option value="all">All Types</option>
-            <option value="job">Job</option>
-            <option value="internship">Internship</option>
-            <option value="competition">Competition</option>
-          </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-          </select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="h-9 w-[180px]">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="job">Job</SelectItem>
+              <SelectItem value="internship">Internship</SelectItem>
+              <SelectItem value="competition">Competition</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="h-9 w-[160px]">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -307,18 +317,24 @@ export default function OpportunitiesPage() {
   {/* errors surface via toasts */}
 
       {/* List */}
-      {displayed.length === 0 && !loading ? (
-        <div className="text-sm text-muted-foreground">No opportunities found.</div>
+      {displayedWithView.length === 0 && !loading ? (
+        <div className="text-sm text-muted-foreground">
+          {role === 'student' && view === 'my'
+            ? 'No applied opportunities yet.'
+            : role === 'admin' && view === 'my'
+            ? 'No listings found in My Listings.'
+            : 'No opportunities found.'}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {displayed.map((it) => (
+      {displayedWithView.map((it) => (
             <Card key={it._id} className="border bg-card text-card-foreground hover:bg-accent/40 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-semibold leading-6 truncate max-w-[22ch]" title={it.title}>{it.title}</h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">{it.type}</span>
+                      <Badge variant="muted" className="capitalize">{it.type}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">{new Date(it.createdAt).toLocaleDateString()}</div>
                     <p className="mt-2 text-sm text-muted-foreground/90 line-clamp-2">{it.description || '—'}</p>
@@ -353,7 +369,18 @@ export default function OpportunitiesPage() {
                     </div>
                   </div>
                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
-                    <Link to={`/dashboard/listing/${it._id}`} className="text-sm underline underline-offset-4">View details</Link>
+                    <Link
+                      to={`/dashboard/listing/${it._id}`}
+                      className="text-sm underline underline-offset-4"
+                      onClick={() => {
+                        try {
+                          sessionStorage.setItem('opps:lastFromList', '1')
+                          sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0))
+                        } catch (e) {}
+                      }}
+                    >
+                      View details
+                    </Link>
                     {token && role === 'student' && (
                       <Button size="sm" onClick={() => handleApply(it._id)} disabled={!!applying[it._id] || !!applied[it._id]}>
                         {applied[it._id] ? 'Applied' : applying[it._id] ? 'Applying…' : 'Apply'}

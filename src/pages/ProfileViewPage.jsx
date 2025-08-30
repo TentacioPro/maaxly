@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { useToast } from '../components/ui/toast'
+import { Card, CardContent } from '../components/ui/card'
 
 export default function ProfileViewPage() {
   const [profile, setProfile] = useState(null)
@@ -43,10 +44,12 @@ export default function ProfileViewPage() {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h2 className="text-2xl font-semibold mb-2">Profile</h2>
-      <div className="text-sm text-slate-600 dark:text-slate-300">Role: {profile.role}</div>
-      <div className="mt-4 bg-white dark:bg-slate-900 p-4 rounded-md shadow-sm">
-        <pre className="text-sm">{JSON.stringify(profile, null, 2)}</pre>
-      </div>
+      <div className="text-sm text-muted-foreground">Role: {profile.role}</div>
+      <Card className="mt-4">
+        <CardContent className="p-4">
+          <pre className="text-sm">{JSON.stringify(profile, null, 2)}</pre>
+        </CardContent>
+      </Card>
     </div>
   )
 }

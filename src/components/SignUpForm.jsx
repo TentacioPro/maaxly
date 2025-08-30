@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import axios from 'axios'
 import { Input, Label } from './ui/input'
 import { Button } from './ui/button'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function SignUpForm({ onAuth }) {
   const [email, setEmail] = useState('')
@@ -9,6 +11,7 @@ export default function SignUpForm({ onAuth }) {
   const [role, setRole] = useState('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -20,6 +23,8 @@ export default function SignUpForm({ onAuth }) {
         localStorage.setItem('token', res.data.token)
         axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
         const pickedRole = res?.data?.user?.role || role || null
+        if (pickedRole) localStorage.setItem('role', pickedRole)
+        try { window.dispatchEvent(new Event('auth-change')) } catch (_) {}
         if (onAuth) onAuth({ user: res?.data?.user, token: res?.data?.token, role: pickedRole })
       } else {
         setError('Invalid response from server')
@@ -32,7 +37,7 @@ export default function SignUpForm({ onAuth }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3">
+    <form onSubmit={handleSubmit} className="grid gap-3 text-foreground">
       {error && <div className="text-sm text-destructive">{error}</div>}
 
       <div>
@@ -42,15 +47,38 @@ export default function SignUpForm({ onAuth }) {
 
       <div>
         <Label htmlFor="password">Password</Label>
-        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="********" required />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="********"
+            required
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <div>
         <Label htmlFor="role">Role</Label>
-        <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="border border-border bg-input/80 text-foreground h-10 w-full rounded-md px-3 py-2 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none">
-          <option value="student">Student</option>
-          <option value="employer">Employer</option>
-        </select>
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger id="role" className="w-full">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="student">Student</SelectItem>
+            <SelectItem value="employer">Employer</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Button className="mt-2" type="submit" disabled={loading}>
@@ -59,10 +87,10 @@ export default function SignUpForm({ onAuth }) {
 
       <div className="relative my-2">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
+          <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background text-muted-foreground px-2">Or continue with</span>
+          <span className="bg-card text-muted-foreground px-2">Or continue with</span>
         </div>
       </div>
 

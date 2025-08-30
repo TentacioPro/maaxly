@@ -3,12 +3,14 @@ import axios from 'axios'
 import { Input, Label } from './ui/input'
 import { Button } from './ui/button'
 import { Link } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginForm({ onAuth }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -20,6 +22,8 @@ export default function LoginForm({ onAuth }) {
         localStorage.setItem('token', res.data.token)
         axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
         const role = res?.data?.user?.role || res?.data?.type || null
+        if (role) localStorage.setItem('role', role)
+        try { window.dispatchEvent(new Event('auth-change')) } catch (_) {}
         if (onAuth) onAuth({ user: res?.data?.user, token: res?.data?.token, role })
       } else {
         setError('Invalid response from server')
@@ -32,7 +36,7 @@ export default function LoginForm({ onAuth }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3">
+    <form onSubmit={handleSubmit} className="grid gap-3 text-foreground">
       {error && <div className="text-sm text-destructive">{error}</div>}
 
       <div>
@@ -40,12 +44,32 @@ export default function LoginForm({ onAuth }) {
         <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" required />
       </div>
 
-      <div className="relative">
+      <div>
         <Label htmlFor="password">Password</Label>
-        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="********" required />
-        <Link to="/forgot-password" className="text-muted-foreground absolute right-0 -top-0.5 text-sm font-medium hover:opacity-75">
-          Forgot password?
-        </Link>
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="********"
+            required
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        <div className="mt-1 text-right">
+          <Link to="/forgot-password" className="text-muted-foreground text-sm font-medium hover:text-foreground">
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
       <Button className="mt-2" type="submit" disabled={loading}>
@@ -54,10 +78,10 @@ export default function LoginForm({ onAuth }) {
 
       <div className="relative my-2">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
+          <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background text-muted-foreground px-2">Or continue with</span>
+          <span className="bg-card text-muted-foreground px-2">Or continue with</span>
         </div>
       </div>
 

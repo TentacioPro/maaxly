@@ -23,7 +23,14 @@ export function ToasterProvider({ children }) {
       {children}
       <div aria-live="polite" className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
         {toasts.map(t => (
-          <div key={t.id} className={`max-w-sm w-full rounded-md px-4 py-2 shadow-lg ${t.variant === 'destructive' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
+          <div
+            key={t.id}
+            className={`max-w-sm w-full rounded-md px-4 py-2 shadow-lg border ${
+              t.variant === 'destructive'
+                ? 'bg-destructive text-destructive-foreground border-destructive/30'
+                : 'bg-popover text-popover-foreground border-border'
+            }`}
+          >
             <div className="font-medium">{t.title}</div>
             {t.description && <div className="text-sm mt-1 opacity-90">{t.description}</div>}
           </div>

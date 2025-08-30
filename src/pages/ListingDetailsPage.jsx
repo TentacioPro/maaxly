@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { useToast } from '../components/ui/toast'
+import { ChevronLeft } from 'lucide-react'
 
 export default function ListingDetailsPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [opportunity, setOpportunity] = useState(null)
   const [applicants, setApplicants] = useState([])
@@ -81,12 +84,33 @@ export default function ListingDetailsPage() {
       <Card className="border bg-card text-card-foreground">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold truncate" title={opportunity.title}>{opportunity.title}</h2>
-              <div className="text-xs text-muted-foreground mt-1">Skill set: {opportunity.skills || '—'}</div>
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                aria-label="Back to opportunities"
+                className="inline-flex items-center justify-center h-8 w-8 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => {
+                  // If we navigated here from an opportunities list click, use history.back() to preserve exact scroll
+                  const fromList = typeof window !== 'undefined' && sessionStorage.getItem('opps:lastFromList')
+                  if (fromList) {
+                    try { sessionStorage.removeItem('opps:lastFromList') } catch (e) {}
+                    window.history.back()
+                  } else {
+                    // Otherwise go to /opportunities and signal the list to restore once if we have a stored scrollY
+                    try { sessionStorage.setItem('opps:restoreOnce', '1') } catch (e) {}
+                    navigate('/opportunities')
+                  }
+                }}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold truncate" title={opportunity.title}>{opportunity.title}</h2>
+                <div className="text-xs text-muted-foreground mt-1">Skill set: {opportunity.skills || '—'}</div>
+              </div>
             </div>
             <div className="text-right">
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">{opportunity.type}</span>
+              <Badge variant="muted" className="capitalize">{opportunity.type}</Badge>
             </div>
           </div>
         </CardHeader>
@@ -137,10 +161,29 @@ export default function ListingDetailsPage() {
                         const res = await axios.post('/api/applications', { opportunityId: id }, { headers })
                         toast.push({ title: 'Application submitted', description: 'Your application was received.' })
                         setHasApplied(true)
-                        const appsRes = await axios.get(`/api/opportunities/${id}/applicants`, { headers })
-                        setApplicants(appsRes.data.applicants || [])
+                        // Prefer count from server response (safe for students)
+                        let updatedCount = res.data?.applicationsCount
+                        // Only owners/admins can see applicants; skip for students
+                        try {
+                          const localRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+                          if (localRole === 'employer' || localRole === 'admin') {
+                            const appsRes = await axios.get(`/api/opportunities/${id}/applicants`, { headers })
+                            setApplicants(appsRes.data.applicants || [])
+                            if (updatedCount == null) {
+                              updatedCount = appsRes.data?.applicants?.length || 0
+                            }
+                          }
+                        } catch (appsErr) {
+                          // Ignore 401/403 here; students aren't allowed to read applicants
+                          if (!(appsErr?.response?.status === 401 || appsErr?.response?.status === 403)) {
+                            // For other errors, show a soft toast but don't mark apply as failed
+                            toast.push({ title: 'Applicants refresh failed', description: appsErr.message, variant: 'destructive' })
+                          }
+                        }
                         // let other components know the new count
-                        const updatedCount = res.data?.applicationsCount ?? (appsRes.data?.applicants?.length || 0)
+                        if (typeof updatedCount !== 'number') {
+                          updatedCount = applicants?.length || 0
+                        }
                         try { window.dispatchEvent(new CustomEvent('applicationsCountUpdated', { detail: { opportunityId: id, applicationsCount: updatedCount } })) } catch (e) {}
                       } catch (err) {
                         const msg = err.response?.data?.message || err.message
@@ -157,9 +200,7 @@ export default function ListingDetailsPage() {
               )}
             </div>
 
-            <div>
-              <Link to="/dashboard" className="text-sm underline">← Back to Dashboard</Link>
-            </div>
+            {/* Back to dashboard link removed as requested */}
           </div>
         </CardFooter>
       </Card>

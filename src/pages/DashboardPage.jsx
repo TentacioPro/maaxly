@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const location = useLocation()
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
     if (!token) {
       // unauthenticated — redirect to home
       setError('unauthenticated')
@@ -57,6 +57,7 @@ export default function DashboardPage() {
 
   if (profile.role === 'student') return <StudentDashboard profile={profile} />
   if (profile.role === 'employer') return <EmployerDashboard profile={profile} fromCreate={location.state?.fromCreate} />
+  if (profile.role === 'admin') return <Navigate to="/admin" replace />
 
   return <div style={{ padding: 24 }}>Unknown profile role.</div>
 }

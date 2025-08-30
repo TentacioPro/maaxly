@@ -2,39 +2,40 @@ import './App.css'
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import MainLayout from './components/MainLayout'
 import { ToasterProvider } from './components/ui/toast'
-import Home from './pages/Home'
-import About from './pages/About'
-import OpportunitiesPage from './pages/OpportunitiesPage'
-import OpportunitiesListPage from './pages/OpportunitiesListPage'
-import OnboardingPage from './pages/OnboardingPage'
-import CreateProfileStudent from './pages/CreateStudentProfilePage'
-import CreateProfileEmployer from './pages/CreateEmployerProfilePage'
-import DashboardPage from './pages/DashboardPage'
-import CreateOpportunityPage from './pages/CreateOpportunityPage'
 import { Navigate } from 'react-router-dom'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense, lazy } from 'react'
 import axios from 'axios'
-import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
-import ListingDetailsPage from './pages/ListingDetailsPage'
-import AdminDashboardPage from './pages/AdminDashboardPage'
- import ProfileViewPage from './pages/ProfileViewPage'
-import CompanyDetailsPage from './pages/CompanyDetailsPage'
+
+// Route-level code splitting
+const Home = lazy(() => import('./pages/Home'))
+const About = lazy(() => import('./pages/About'))
+const OpportunitiesPage = lazy(() => import('./pages/OpportunitiesPage'))
+const OpportunitiesListPage = lazy(() => import('./pages/OpportunitiesListPage'))
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
+const CreateProfileStudent = lazy(() => import('./pages/CreateStudentProfilePage'))
+const CreateProfileEmployer = lazy(() => import('./pages/CreateEmployerProfilePage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const CreateOpportunityPage = lazy(() => import('./pages/CreateOpportunityPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const SignupPage = lazy(() => import('./pages/SignupPage'))
+const ListingDetailsPage = lazy(() => import('./pages/ListingDetailsPage'))
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'))
+const ProfileViewPage = lazy(() => import('./pages/ProfileViewPage'))
+const CompanyDetailsPage = lazy(() => import('./pages/CompanyDetailsPage'))
+const PersonalizationPage = lazy(() => import('./pages/PersonalizationPage'))
 
 function App() {
   const [role, setRole] = useState(null) // 'student' | 'employer' | null
 
-  // ensure axios carries token on page load / refresh and fetch role
+  // ensure axios carries token and react to auth changes (login/logout) without hard refresh
   useEffect(() => {
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      if (token) {
-        axios.defaults.headers.common.Authorization = `Bearer ${token}`
-        // fetch profile to determine role
-        (async () => {
+    async function syncAuthFromStorage() {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        if (token) {
+          axios.defaults.headers.common.Authorization = `Bearer ${token}`
           try {
             const res = await axios.get('/api/profile/me')
-            // server returns { success: true, profile, type }
             if (res?.data?.type) {
               setRole(res.data.type)
               localStorage.setItem('role', res.data.type)
@@ -42,19 +43,28 @@ function App() {
               setRole(null)
               localStorage.removeItem('role')
             }
-          } catch (e) {
-            // couldn't fetch profile (not onboarded or invalid token)
+          } catch {
             setRole(null)
             localStorage.removeItem('role')
           }
-        })()
-      } else {
-        delete axios.defaults.headers.common.Authorization
-        setRole(null)
-        localStorage.removeItem('role')
-      }
-    } catch (err) {
-      // ignore
+        } else {
+          delete axios.defaults.headers.common.Authorization
+          setRole(null)
+          localStorage.removeItem('role')
+        }
+      } catch {}
+    }
+
+    // initial sync
+    syncAuthFromStorage()
+
+    const onStorage = (e) => { if (e.key === 'token') syncAuthFromStorage() }
+    const onAuthChange = () => syncAuthFromStorage()
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('auth-change', onAuthChange)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('auth-change', onAuthChange)
     }
   }, [])
 
@@ -63,12 +73,13 @@ function App() {
       <ToasterProvider>
         <div className="App">
           <MainLayout>
+            <Suspense fallback={<div className="p-6 text-muted-foreground">Loading…</div>}>
             <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={(typeof window !== 'undefined' && localStorage.getItem('token')) ? <Navigate to="/dashboard" replace /> : <Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
-            <Route path="/login" element={<LoginPage setRole={setRole} />} />
+            <Route path="/login" element={(typeof window !== 'undefined' && localStorage.getItem('token')) ? <Navigate to="/dashboard" replace /> : <LoginPage setRole={setRole} />} />
             <Route path="/signup" element={<SignupPage setRole={setRole} />} />
             <Route path="/profile" element={<ProfileViewPage />} />
 
@@ -90,7 +101,9 @@ function App() {
             <Route path="/dashboard/listing/:id" element={<Protected><ListingDetailsPage /></Protected>} />
             <Route path="/company/:id" element={<CompanyDetailsPage />} />
             <Route path="/admin" element={<Protected><AdminDashboardPage /></Protected>} />
+            <Route path="/personalization" element={<PersonalizationPage />} />
             </Routes>
+            </Suspense>
           </MainLayout>
         </div>
       </ToasterProvider>
@@ -103,12 +116,16 @@ function TopNav({ role, setRole }) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
   function handleLogout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    try { delete axios.defaults.headers.common.Authorization } catch (e) {}
+    try {
+      localStorage.removeItem('token')
+      localStorage.removeItem('role')
+  // legacy cleanup: remove stale isAdmin flag in storage
+  localStorage.removeItem('isAdmin')
+      delete axios.defaults.headers.common?.Authorization
+    } catch (_) {}
     setRole(null)
-    navigate('/')
-    window.location.reload()
+    navigate('/', { replace: true })
+    setTimeout(() => { if (typeof window !== 'undefined') window.location.replace('/') }, 0)
   }
 
   return (
@@ -166,10 +183,10 @@ function RequireRole({ allowed = [], children }) {
   const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
   if (!token) return <Navigate to="/login" replace />
   // admins should always be allowed
+  if (role === 'admin') return children
   if (role && allowed.includes(role)) return children
   try {
-    const storedIsAdmin = localStorage.getItem('isAdmin')
-    if (storedIsAdmin === 'true') return children
+    // Do not trust localStorage isAdmin; rely on role value only
   } catch (e) {}
   // fallback: deny access
   return <Navigate to="/" replace />

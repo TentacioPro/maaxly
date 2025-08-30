@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardHeader, CardContent, CardFooter } from './ui/card'
 import { Input, Label } from './ui/input'
+import { Textarea } from './ui/textarea'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select'
 import { Button } from './ui/button'
 
 export default function ProfileForm() {
@@ -35,22 +37,23 @@ export default function ProfileForm() {
 
             <div>
               <Label htmlFor="role">Role</Label>
-              <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-md border p-2">
-                <option value="student">Student</option>
-                <option value="employer">Employer</option>
-              </select>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger id="role" className="w-full"><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="employer">Employer</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <Label htmlFor="bio">Bio</Label>
-              <textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} className="w-full rounded-md border p-2" rows={4} />
+              <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
             </div>
           </CardContent>
 
-          <CardFooter>
-            <div className="w-full flex justify-end">
-              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Profile'}</Button>
-            </div>
+          <CardFooter className="flex justify-end gap-2 border-t p-4">
+            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Profile'}</Button>
           </CardFooter>
         </form>
       </Card>

@@ -9,6 +9,10 @@ import EmployerProfile from './models/EmployerProfile.js'
 import Opportunity from './models/Opportunity.js'
 import Application from './models/Application.js'
 import AdminProfile from './models/AdminProfile.js'
+import Skill from './models/Skill.js'
+import AnalyticsEvent from './models/AnalyticsEvent.js'
+import Plan from './models/Plan.js'
+import Subscription from './models/Subscription.js'
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -112,7 +116,8 @@ function adminRequired(req, res, next) {
     try {
       const requester = await User.findById(req.userId)
       if (!requester) return res.status(401).json({ message: 'Unauthorized' })
-      if (!requester.isAdmin) return res.status(403).json({ message: 'Forbidden: admin only' })
+  // Only true administrators allowed
+  if (requester.isAdmin !== true) return res.status(403).json({ message: 'Forbidden: admin only' })
       return next()
     } catch (err) {
       console.error('[adminRequired] error:', err && err.message)
@@ -195,7 +200,9 @@ app.post('/api/onboarding/role', authMiddleware, async (req, res) => {
     if (!req.userId) return res.status(401).json({ message: 'Unauthorized' })
     if (req.userId !== userId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
-    const user = await User.findByIdAndUpdate(userId, { role }, { new: true })
+  // Set role and flags; do NOT set isAdmin here
+  const update = { role, isStudent: role === 'student', isEmployer: role === 'employer' }
+  const user = await User.findByIdAndUpdate(userId, update, { new: true })
     if (!user) return res.status(404).json({ message: 'User not found' })
 
     res.json({ success: true, user })
@@ -210,12 +217,15 @@ app.get('/api/profile/me', authMiddleware, async (req, res) => {
     const userId = req.userId
     if (!userId) return res.status(401).json({ message: 'Unauthorized' })
 
-    // prefer StudentProfile then EmployerProfile
+  // prefer StudentProfile then EmployerProfile, then AdminProfile
     let profile = await StudentProfile.findOne({ userId }).lean()
     if (profile) return res.json({ success: true, profile, type: 'student' })
 
     profile = await EmployerProfile.findOne({ userId }).lean()
     if (profile) return res.json({ success: true, profile, type: 'employer' })
+
+  profile = await AdminProfile.findOne({ userId }).lean()
+  if (profile) return res.json({ success: true, profile, type: 'admin' })
 
     return res.status(404).json({ success: false, message: 'Profile not found' })
   } catch (err) {
@@ -226,7 +236,27 @@ app.get('/api/profile/me', authMiddleware, async (req, res) => {
 // Opportunities routes
 app.get('/api/opportunities', async (req, res) => {
   try {
-    const items = await Opportunity.find().sort({ createdAt: -1 }).lean()
+    // Optional auth: if an employer is authenticated, restrict to their own listings
+    let requesterUserId = null
+    let requesterRole = 'guest'
+    const auth = req.headers.authorization
+    if (auth && auth.startsWith('Bearer ')) {
+      try {
+        const token = auth.slice(7)
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
+        requesterUserId = payload.sub
+        const user = await User.findById(requesterUserId).select('role').lean()
+        if (user && user.role) requesterRole = user.role
+      } catch (e) {
+        // ignore token errors for this public endpoint
+      }
+    }
+
+    const query = (requesterRole === 'employer' && requesterUserId)
+      ? { owner: requesterUserId }
+      : {}
+
+    const items = await Opportunity.find(query).sort({ createdAt: -1 }).lean()
     res.json({ success: true, opportunities: items })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
@@ -323,6 +353,49 @@ app.get('/api/applications/my', authMiddleware, async (req, res) => {
   }
 })
 
+// Skills: suggest and create
+// GET /api/skills/suggest?q=rea -> returns top 10 matching skills (prefix or contains)
+app.get('/api/skills/suggest', async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim().toLowerCase()
+    if (!q || q.length < 3) return res.json({ success: true, skills: [] })
+    // Use case-insensitive partial match on nameLower; prefer prefix matches first
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    const prefixMatches = await Skill.find({ nameLower: { $regex: '^' + q } }).sort({ nameLower: 1 }).limit(10).lean()
+    let results = prefixMatches
+    if (results.length < 10) {
+      const exclude = new Set(prefixMatches.map(s => s.nameLower))
+      const containsMatches = await Skill.find({ nameLower: { $regex: regex } }).sort({ nameLower: 1 }).limit(10).lean()
+      for (const s of containsMatches) {
+        if (exclude.has(s.nameLower)) continue
+        results.push(s)
+        if (results.length >= 10) break
+      }
+    }
+    res.json({ success: true, skills: results.map(s => s.name) })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// POST /api/skills  body: { name }
+app.post('/api/skills', authMiddleware, async (req, res) => {
+  try {
+    const name = (req.body?.name || '').toString().trim()
+    if (!name) return res.status(400).json({ message: 'name is required' })
+    if (name.length > 64) return res.status(400).json({ message: 'name too long' })
+    const nameLower = name.toLowerCase()
+    const existing = await Skill.findOne({ nameLower })
+    if (existing) return res.status(200).json({ success: true, skill: existing })
+    const doc = new Skill({ name })
+    await doc.save()
+    res.status(201).json({ success: true, skill: doc })
+  } catch (err) {
+    if (err.code === 11000) return res.status(200).json({ success: true, message: 'Already exists' })
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
 // Check whether current user already applied to a specific opportunity
 app.get('/api/applications/check', authMiddleware, async (req, res) => {
   try {
@@ -395,10 +468,94 @@ app.get('/api/admin/stats', async (req, res) => {
     const totalEmployers = await User.countDocuments({ role: 'employer' })
     const totalOpportunities = await Opportunity.countDocuments()
 
-    res.json({ success: true, stats: { totalUsers, totalStudents, totalEmployers, totalOpportunities } })
+    // Last 7 days visits by role
+    const since = new Date(Date.now() - 7*24*60*60*1000)
+    const visitsAgg = await AnalyticsEvent.aggregate([
+      { $match: { ts: { $gte: since } } },
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ])
+    const visitsByRole = Object.fromEntries(visitsAgg.map(r => [r._id, r.count]))
+
+    res.json({ success: true, stats: { totalUsers, totalStudents, totalEmployers, totalOpportunities, visitsByRole } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
+})
+
+// Admin: analytics - time series for visits (daily buckets) over a window
+app.get('/api/admin/analytics/visits', async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days || '30', 10), 365)
+    const since = new Date(Date.now() - days*24*60*60*1000)
+    const series = await AnalyticsEvent.aggregate([
+      { $match: { ts: { $gte: since } } },
+      { $group: { _id: { d: { $dateToString: { format: '%Y-%m-%d', date: '$ts' } }, role: '$role' }, count: { $sum: 1 } } },
+      { $sort: { '_id.d': 1 } }
+    ])
+    res.json({ success: true, series })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// Admin: analytics - top pages and referrers
+app.get('/api/admin/analytics/top', async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days || '30', 10), 365)
+    const since = new Date(Date.now() - days*24*60*60*1000)
+    const topPages = await AnalyticsEvent.aggregate([
+      { $match: { ts: { $gte: since } } },
+      { $group: { _id: '$path', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 20 }
+    ])
+    const topReferrers = await AnalyticsEvent.aggregate([
+      { $match: { ts: { $gte: since }, referrer: { $exists: true, $ne: '' } } },
+      { $group: { _id: '$referrer', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 20 }
+    ])
+    res.json({ success: true, topPages, topReferrers })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// Admin: engagement metrics per role (DAU/WAU/MAU naive)
+app.get('/api/admin/analytics/engagement', async (req, res) => {
+  try {
+    const now = Date.now()
+    const days = (n) => new Date(now - n*24*60*60*1000)
+    const ranges = { dau: days(1), wau: days(7), mau: days(30) }
+    const result = {}
+    for (const [key, since] of Object.entries(ranges)) {
+      const agg = await AnalyticsEvent.aggregate([
+        { $match: { ts: { $gte: since } } },
+        { $group: { _id: { role: '$role', user: '$userId' }, count: { $sum: 1 } } },
+        { $group: { _id: '$_id.role', users: { $sum: 1 } } }
+      ])
+      result[key] = Object.fromEntries(agg.map(a => [a._id || 'guest', a.users]))
+    }
+    res.json({ success: true, engagement: result })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// Admin: plans CRUD
+app.get('/api/admin/plans', async (req, res) => {
+  try { const plans = await Plan.find({}).sort({ priceCents: 1 }).lean(); res.json({ success: true, plans }) } catch (e) { res.status(500).json({ success: false, message: e.message }) }
+})
+app.post('/api/admin/plans', async (req, res) => {
+  try { const plan = new Plan(req.body); await plan.save(); res.status(201).json({ success: true, plan }) } catch (e) { res.status(400).json({ success: false, message: e.message }) }
+})
+app.put('/api/admin/plans/:id', async (req, res) => {
+  try { const plan = await Plan.findByIdAndUpdate(req.params.id, req.body, { new: true }); if (!plan) return res.status(404).json({ message: 'Not found' }); res.json({ success: true, plan }) } catch (e) { res.status(400).json({ success: false, message: e.message }) }
+})
+app.delete('/api/admin/plans/:id', async (req, res) => {
+  try { await Plan.findByIdAndDelete(req.params.id); res.json({ success: true }) } catch (e) { res.status(400).json({ success: false, message: e.message }) }
+})
+
+// Admin: subscriptions list (basic)
+app.get('/api/admin/subscriptions', async (req, res) => {
+  try {
+    const subs = await Subscription.find({}).populate('userId','email').populate('planId','name priceCents interval').lean()
+    res.json({ success: true, subscriptions: subs })
+  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
 })
 
 // POST create application (student applies to an opportunity)
@@ -432,6 +589,21 @@ app.post('/api/applications', authMiddleware, async (req, res) => {
     res.status(201).json({ success: true, application: appDoc, applicationsCount: updatedOpp?.applicationsCount || 0 })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Lightweight analytics: track a route view
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    const { path, role, userId, referrer } = req.body || {}
+    if (!path) return res.status(400).json({ message: 'path required' })
+    const ua = req.headers['user-agent'] || ''
+    const evt = new AnalyticsEvent({ path, role: role || 'guest', userId, referrer, ua })
+    await evt.save()
+    res.json({ success: true })
+  } catch (err) {
+    // do not fail loudly; analytics is best-effort
+    res.json({ success: false })
   }
 })
 

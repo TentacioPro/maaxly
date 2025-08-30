@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { Card, CardContent } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { useToast } from '../components/ui/toast'
 
@@ -15,10 +16,12 @@ export default function OpportunitiesListPage() {
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
+  async function load() {
       setLoading(true)
       try {
-        const res = await axios.get('/api/opportunities')
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const res = await axios.get('/api/opportunities', { headers })
         if (cancelled) return
         const items = res.data?.opportunities || []
         setOpportunities(items)
@@ -33,6 +36,16 @@ export default function OpportunitiesListPage() {
     }
     load()
     return () => { cancelled = true }
+  }, [])
+
+  // Persist/restore scroll position when navigating to details and back
+  useEffect(() => {
+    const restoreOnce = sessionStorage.getItem('opps:restoreOnce')
+    const saved = sessionStorage.getItem('opps:scrollY')
+    if (restoreOnce && saved) {
+      try { window.scrollTo(0, parseInt(saved, 10) || 0) } catch (e) {}
+      try { sessionStorage.removeItem('opps:restoreOnce') } catch (e) {}
+    }
   }, [])
 
   // listen for global updates to applications counts (so other views update)
@@ -77,12 +90,21 @@ export default function OpportunitiesListPage() {
           {displayed.map(o => (
             <Card key={o._id || o.id} className="border bg-card text-card-foreground">
               <CardContent className="p-4">
-                <Link to={`/dashboard/listing/${o._id || o.id}`} className="no-underline text-inherit">
+                <Link
+                  to={`/dashboard/listing/${o._id || o.id}`}
+                  className="no-underline text-inherit"
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('opps:lastFromList', '1')
+                      sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0))
+                    } catch (e) {}
+                  }}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-base font-semibold leading-6 truncate max-w-[22ch]" title={o.title}>{o.title}</h3>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">{o.type}</span>
+                        <Badge variant="muted" className="capitalize">{o.type}</Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">{new Date(o.createdAt).toLocaleDateString()}</div>
                       <p className="mt-2 text-sm text-muted-foreground/90 line-clamp-2">{o.description || '—'}</p>

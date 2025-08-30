@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card'
@@ -15,6 +15,13 @@ export default function CreateEmployerProfilePage() {
   const [message, setMessage] = useState(null)
   const [errors, setErrors] = useState({})
   const toast = useToast()
+
+  // Disable app scroll while onboarding is open; restore on unmount
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   function validate() {
     const e = {}
@@ -71,8 +78,8 @@ export default function CreateEmployerProfilePage() {
   }
 
   return (
-    <div style={{ maxWidth: 980, margin: '28px auto', padding: '0 12px' }}>
-      <Card className="w-full" style={{ padding: 20, minWidth: 520 }}>
+    <div className="h-full w-full grid place-items-center px-3">
+  <Card className="w-full max-w-[96vw] sm:max-w-[640px] lg:max-w-[880px] xl:max-w-[980px] 2xl:max-w-[1100px] bg-card text-card-foreground shadow max-h-[calc(100svh-2rem)] overflow-auto lg:max-h-none lg:overflow-visible" style={{ padding: 20 }}>
         <CardHeader>
           <h2 className="text-lg font-semibold">Create Employer Profile</h2>
         </CardHeader>
@@ -81,28 +88,26 @@ export default function CreateEmployerProfilePage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="fullName">Full name</Label>
-              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full max-w-2xl" />
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full max-w-2xl mt-1.5" />
               {errors.fullName && <div className="text-destructive">{errors.fullName}</div>}
             </div>
 
             <div>
               <Label htmlFor="companyName">Company name</Label>
-              <Input id="companyName" value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full max-w-2xl" />
+              <Input id="companyName" value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full max-w-2xl mt-1.5" />
               {errors.companyName && <div className="text-destructive">{errors.companyName}</div>}
             </div>
 
             <div>
               <Label htmlFor="companyWebsite">Company website</Label>
               {/* use text input to avoid native browser URL validation tooltip; we'll validate/normalize ourselves */}
-              <Input id="companyWebsite" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} className="w-full max-w-2xl" placeholder="example.com or https://example.com" />
+              <Input id="companyWebsite" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} className="w-full max-w-2xl mt-1.5" placeholder="example.com or https://example.com" />
               {errors.companyWebsite && <div className="text-destructive">{errors.companyWebsite}</div>}
             </div>
           </CardContent>
 
-          <CardFooter>
-            <div className="flex justify-end w-full">
-              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save profile'}</Button>
-            </div>
+          <CardFooter className="flex justify-end gap-2 border-t p-4 bg-background/95">
+            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save profile'}</Button>
           </CardFooter>
         </form>
 

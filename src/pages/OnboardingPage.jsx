@@ -36,8 +36,16 @@ export default function OnboardingPage() {
         return
       }
 
+      axios.defaults.headers.common.Authorization = `Bearer ${token}`
       const res = await axios.post('/api/onboarding/role', { userId, role }, { headers: { Authorization: `Bearer ${token}` } })
-      if (res.data?.redirect) navigate(res.data.redirect)
+      if (res.data?.redirect) {
+        navigate(res.data.redirect)
+      } else {
+        // Fallback to local routing if server doesn't provide redirect
+        if (role === 'student') navigate('/create-profile/student')
+        else if (role === 'employer') navigate('/create-profile/employer')
+        else navigate('/dashboard')
+      }
     } catch (err) {
       console.error(err)
       alert(err.response?.data?.message || err.message)
@@ -56,9 +64,11 @@ export default function OnboardingPage() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', gap: 24, justifyContent: 'center', marginTop: 80 }}>
+    <div className="h-full w-full grid place-items-center px-4">
+      <div className="w-full max-w-[96vw] sm:max-w-[640px] grid gap-4 sm:gap-6 place-items-center">
       <button onClick={() => sendRole('student')} disabled={loading} style={{ padding: '40px 80px', fontSize: 20 }}>{loading ? 'Processing...' : 'I am a Student'}</button>
       <button onClick={() => sendRole('employer')} disabled={loading} style={{ padding: '40px 80px', fontSize: 20 }}>{loading ? 'Processing...' : 'I am an Employer'}</button>
+      </div>
     </div>
   )
 }

@@ -1,8 +1,16 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import LoginForm from '../components/LoginForm'
 
 export default function Home() {
+  const navigate = useNavigate()
+
+  const onAuth = () => {
+    try { window.dispatchEvent(new Event('auth-change')) } catch (_) {}
+    navigate('/dashboard')
+  }
+
   return (
     <div className="container grid min-h-[calc(100svh-48px)] max-w-none items-center justify-center">
       <div className="mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-[480px] sm:p-8">
@@ -20,7 +28,7 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoginForm />
+            <LoginForm onAuth={onAuth} />
           </CardContent>
           <CardFooter>
             <p className="text-muted-foreground px-8 text-center text-sm">

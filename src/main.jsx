@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client'
-import { ThemeProvider } from 'next-themes'
 import './index.css'
 import App from './App.jsx'
+import { ThemeProvider, ThemeScript } from '@/providers/ThemeProvider'
 
 createRoot(document.getElementById('root')).render(
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+  <ThemeProvider defaultTheme="system">
+    <ThemeScript />
     <App />
   </ThemeProvider>
 )

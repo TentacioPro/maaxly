@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
@@ -6,6 +6,13 @@ import SignUpForm from '../components/SignUpForm'
 
 export default function SignupPage({ setRole }) {
   const navigate = useNavigate()
+
+  // Disable app scroll while on signup and center card
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   const onAuth = async ({ user, token, role }) => {
     // persist token and role locally
@@ -20,38 +27,23 @@ export default function SignupPage({ setRole }) {
       localStorage.setItem('role', pickedRole)
     }
 
-    // Call backend onboarding role endpoint to persist the user's role server-side
-    // then route the user to the role-specific profile creation page so they can
-    // fill the details required by /api/profile/student or /api/profile/employer.
-    try {
-      if (user && pickedRole) {
-        await axios.post('/api/onboarding/role', { userId: user._id, role: pickedRole })
-      }
-    } catch (err) {
-      // log but continue to route user — backend may accept role during profile creation
-      console.error('onboarding role set failed', err?.response?.data || err.message || err)
-    }
+  // notify the app that auth state changed so headers/menus update without refresh
+  try { window.dispatchEvent(new Event('auth-change')) } catch (_) {}
 
-    // Send user to the proper onboarding form
-    if (pickedRole === 'student') {
-      navigate('/create-profile/student')
-    } else if (pickedRole === 'employer') {
-      navigate('/create-profile/employer')
-    } else {
-      navigate('/dashboard')
-    }
+  // Go to onboarding; it will auto-advance using the selected role and redirect
+  navigate('/onboarding', { replace: true, state: { autoRole: pickedRole } })
   }
 
   return (
-    <div className="container grid min-h-[calc(100svh-48px)] max-w-none items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-[480px] sm:p-8">
+    <div className="h-full w-full grid place-items-center overflow-hidden px-4">
+  <div className="mx-auto w-full max-w-[92vw] sm:max-w-[420px] md:max-w-[480px] xl:max-w-[560px] 2xl:max-w-[640px] space-y-2 py-8">
         <div className="mb-4 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="me-2 h-6 w-6">
             <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
           </svg>
           <h1 className="text-xl font-medium">Maaxly</h1>
         </div>
-        <Card className="gap-4">
+  <Card className="gap-4 bg-card text-card-foreground shadow max-h-[calc(100svh-2rem)] overflow-auto lg:max-h-none lg:overflow-visible">
           <CardHeader>
             <CardTitle className="text-lg tracking-tight">Sign up</CardTitle>
             <CardDescription>
