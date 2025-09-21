@@ -1,4 +1,5 @@
 import express from 'express'
+import net from 'net'
 import mongoose from 'mongoose'
 import bcrypt from 'bcrypt'
 import cors from 'cors'
@@ -13,6 +14,13 @@ import Skill from './models/Skill.js'
 import AnalyticsEvent from './models/AnalyticsEvent.js'
 import Plan from './models/Plan.js'
 import Subscription from './models/Subscription.js'
+import messagesRouter from './routes/messages.js'
+import usersSearchRouter from './routes/search.js'
+import eventsRouter from './routes/events.js'
+import profilesRouter from './routes/profiles.js'
+import { startConsumer } from './kafka/consumer.js'
+import redisClient from './redis/client.js'
+import { publishMessage } from './kafka/producer.js'
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -188,6 +196,18 @@ async function handleCreateEmployerProfile(req, res) {
 app.post('/api/profile/employer', authMiddleware, handleCreateEmployerProfile)
 app.post('/api/profile/employer/:userId', authMiddleware, handleCreateEmployerProfile)
 
+// Messaging routes (all protected)
+app.use('/api/messages', authMiddleware, messagesRouter)
+
+// Users search router (protected)
+app.use('/api/users', authMiddleware, usersSearchRouter)
+
+// Profiles public/private visibility endpoints
+app.use('/api/profiles', profilesRouter)
+
+// Events (SSE) router for live updates (optional auth)
+app.use('/api/events', eventsRouter)
+
 // Onboarding role selection - protected
 app.post('/api/onboarding/role', authMiddleware, async (req, res) => {
   try {
@@ -231,6 +251,145 @@ app.get('/api/profile/me', authMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
+})
+
+// PATCH update basic profile fields (bio, skills array, companyWebsite etc.)
+app.patch('/api/profile', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+
+    // Determine which profile collection exists
+    let profile = await StudentProfile.findOne({ userId })
+    let model = null
+    if (profile) model = StudentProfile
+    else {
+      profile = await EmployerProfile.findOne({ userId })
+      if (profile) model = EmployerProfile
+    }
+    if (!profile) return res.status(404).json({ message: 'Profile not found' })
+
+    const allowed = ['bio', 'skills', 'companyWebsite', 'companyName', 'fullName', 'major', 'college', 'graduationYear']
+    const update = {}
+    for (const k of allowed) if (k in req.body) update[k] = req.body[k]
+    if (update.skills && !Array.isArray(update.skills)) update.skills = []
+    if ('graduationYear' in update) {
+      const gy = Number(update.graduationYear)
+      if (!Number.isFinite(gy)) delete update.graduationYear
+      else update.graduationYear = gy
+    }
+
+    const next = await model.findOneAndUpdate({ userId }, { $set: update }, { new: true })
+    // Emit and publish profile update so other systems and SSE clients can react
+    try { eventBus && eventBus.emit && eventBus.emit('profile:updated', { userId, profile: next.toObject ? next.toObject() : next }) } catch(_){}
+    try { if (redisClient && typeof redisClient.publish === 'function') await redisClient.publish('profiles:updates', JSON.stringify({ userId, profile: next.toObject ? next.toObject() : next })) } catch (rerr) { console.warn('Failed to publish profile update to Redis', rerr && rerr.message) }
+    try { await publishMessage(process.env.KAFKA_PROFILE_TOPIC || 'profile-updates', { userId, profile: next.toObject ? next.toObject() : next }) } catch (kerr) { console.warn('Failed to publish profile update to Kafka', kerr && kerr.message) }
+    res.json({ success: true, profile: next })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Resume & video metadata storage (no file storage yet) - simple stub
+import fs from 'fs'
+import path from 'path'
+
+const uploadsDir = path.join(process.cwd(), 'server', 'uploads')
+try { if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true }) } catch {}
+
+// In-memory map for metadata until real storage added
+const mediaMeta = { resumes: new Map(), videos: new Map() }
+
+app.post('/api/profile/resume', authMiddleware, async (req, res) => {
+  try {
+    const { name, size } = req.body || {}
+    if (!name) return res.status(400).json({ message: 'name required' })
+    mediaMeta.resumes.set(req.userId, { name, size, uploadedAt: new Date() })
+    res.status(201).json({ success: true, resume: mediaMeta.resumes.get(req.userId) })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+app.post('/api/profile/video', authMiddleware, async (req, res) => {
+  try {
+    const { name, size, durationSec } = req.body || {}
+    if (!name) return res.status(400).json({ message: 'name required' })
+    mediaMeta.videos.set(req.userId, { name, size, durationSec, uploadedAt: new Date() })
+    res.status(201).json({ success: true, video: mediaMeta.videos.get(req.userId) })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+app.get('/api/profile/media', authMiddleware, async (req, res) => {
+  res.json({ success: true, resume: mediaMeta.resumes.get(req.userId) || null, video: mediaMeta.videos.get(req.userId) || null })
+})
+
+// Student progress (mock aggregates) - would join Applications etc.
+app.get('/api/analytics/student/progress', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('role').lean()
+    if (!user || user.role !== 'student') return res.status(403).json({ message: 'Forbidden' })
+    // For now mock counts from Applications collection
+    const totalApps = await Application.countDocuments({ applicant: req.userId })
+    // interview/offer counts not tracked; return zero placeholders
+    res.json({ success: true, progress: { applications: totalApps, interviews: 0, offers: 0 } })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// Employer analytics summary (mock) - aggregates from Opportunity + Application
+app.get('/api/analytics/employer/overview', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('role').lean()
+    if (!user || (user.role !== 'employer' && user.role !== 'admin')) return res.status(403).json({ message: 'Forbidden' })
+    const listings = await Opportunity.find({ owner: req.userId }).select('applicationsCount type createdAt').lean()
+    const totalListings = listings.length
+    const totalApplicants = listings.reduce((s, l) => s + (l.applicationsCount || 0), 0)
+    const avgApplicantsPerListing = totalListings ? (totalApplicants / totalListings) : 0
+    const byType = listings.reduce((acc, l) => { const t = (l.type||'other'); acc[t] = (acc[t]||0)+1; return acc }, {})
+    res.json({ success: true, overview: { totalListings, totalApplicants, avgApplicantsPerListing, byType } })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// Habit forming: tasks + streak endpoints (local ephemeral)
+const taskState = new Map() // userId -> { tasks: [...], updatedAt }
+const streakState = new Map() // userId -> { current, lastDate }
+
+app.get('/api/habits/tasks', authMiddleware, async (req, res) => {
+  const existing = taskState.get(req.userId)
+  if (!existing) {
+    const seed = [
+      { id: 'resume', label: 'Upload resume', done: false },
+      { id: 'video', label: 'Record intro video', done: false },
+      { id: 'apply1', label: 'Apply to 1 opportunity', done: false },
+      { id: 'skill', label: 'Add 3 new skills', done: false }
+    ]
+    taskState.set(req.userId, { tasks: seed, updatedAt: new Date() })
+    return res.json({ success: true, tasks: seed })
+  }
+  res.json({ success: true, tasks: existing.tasks })
+})
+
+app.post('/api/habits/tasks/:id/toggle', authMiddleware, async (req, res) => {
+  const state = taskState.get(req.userId)
+  if (!state) return res.status(404).json({ message: 'No tasks' })
+  state.tasks = state.tasks.map(t => t.id === req.params.id ? { ...t, done: !t.done } : t)
+  state.updatedAt = new Date()
+  taskState.set(req.userId, state)
+  res.json({ success: true, tasks: state.tasks })
+})
+
+app.get('/api/habits/streak', authMiddleware, async (req, res) => {
+  const today = new Date().toDateString()
+  const existing = streakState.get(req.userId)
+  if (!existing) {
+    const init = { current: 1, lastDate: today }
+    streakState.set(req.userId, init)
+    return res.json({ success: true, streak: init })
+  }
+  if (existing.lastDate !== today) {
+    existing.current += 1
+    existing.lastDate = today
+    streakState.set(req.userId, existing)
+  }
+  res.json({ success: true, streak: existing })
 })
 
 // Opportunities routes
@@ -316,7 +475,77 @@ app.get('/api/opportunities/:id', async (req, res) => {
     const { id } = req.params
     const opp = await Opportunity.findById(id).lean()
     if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    // increment detail view (fire and forget)
+    try { await Opportunity.findByIdAndUpdate(id, { $inc: { detailViews: 1 } }) } catch (e) {}
     res.json({ success: true, opportunity: opp })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Track events for opportunity: currently supports companySite (company site clicks)
+app.post('/api/opportunities/:id/track', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { event } = req.body || {}
+    if (!['companySite'].includes(event)) return res.status(400).json({ message: 'Invalid event' })
+    const update = {}
+    if (event === 'companySite') update.$inc = { companySiteViews: 1 }
+    const opp = await Opportunity.findByIdAndUpdate(id, update, { new: true }).lean()
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    res.json({ success: true, opportunity: { _id: opp._id, companySiteViews: opp.companySiteViews } })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Insights for opportunity (owner/admin)
+app.get('/api/opportunities/:id/insights', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const opp = await Opportunity.findById(id).lean()
+    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    const requester = await User.findById(req.userId).select('role').lean()
+    if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+    if (String(opp.owner) !== String(req.userId) && requester.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+    const applications = await Application.find({ opportunity: id }).populate('applicant', 'location skills fullName email').lean()
+    const regions = {}
+    const skills = {}
+    applications.forEach(a => {
+      const loc = (a.applicant?.location || 'Unknown').trim() || 'Unknown'
+      regions[loc] = (regions[loc] || 0) + 1
+      const skillList = (a.applicant?.skills || '').split(',').map(s=>s.trim()).filter(Boolean)
+      skillList.forEach(s => { skills[s] = (skills[s] || 0) + 1 })
+    })
+    let applicantsOut
+    if (req.query.full === '1') {
+      const oppSkills = (opp.skillset || '').split(',').map(s=>s.trim()).filter(Boolean)
+      applicantsOut = applications.map(a => {
+        const userSkills = (a.applicant?.skills || '').split(',').map(s=>s.trim()).filter(Boolean)
+        const intersection = oppSkills.length ? userSkills.filter(s => oppSkills.includes(s)) : []
+        const matchPercent = oppSkills.length ? Math.round((intersection.length / oppSkills.length) * 100) : 0
+        return {
+          id: a._id,
+          applicantId: a.applicant?._id,
+            name: a.applicant?.fullName || 'Unknown',
+          email: a.applicant?.email,
+          location: a.applicant?.location || 'Unknown',
+          skills: userSkills,
+          matchPercent,
+          status: a.status
+        }
+      })
+    }
+    res.json({ success: true, insights: {
+      applicantsTotal: applications.length,
+      detailViews: opp.detailViews || 0,
+      companySiteViews: opp.companySiteViews || 0,
+      regions,
+      skills,
+      applicants: applicantsOut
+    } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -346,8 +575,36 @@ app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) =>
 // GET current user's applications (students can list their own applications)
 app.get('/api/applications/my', authMiddleware, async (req, res) => {
   try {
-    const apps = await Application.find({ applicant: req.userId }).lean()
+    const apps = await Application.find({ applicant: req.userId })
+      .populate('opportunity', 'title type location applicationsCount')
+      .sort({ createdAt: -1 })
+      .lean()
     res.json({ success: true, applications: apps })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Update application status (employer or admin) - minimal auth: owner of opportunity or admin
+app.patch('/api/applications/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body || {}
+    if (!['applied','screening','interview','offer','rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' })
+    }
+    const appDoc = await Application.findById(id).populate('opportunity','owner')
+    if (!appDoc) return res.status(404).json({ message: 'Not found' })
+    const requester = await User.findById(req.userId).select('role').lean()
+    if (!requester) return res.status(401).json({ message: 'Unauthorized' })
+    if (String(appDoc.opportunity.owner) !== String(req.userId) && requester.role !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+    appDoc.status = status
+    appDoc.history = appDoc.history || []
+    appDoc.history.push({ status })
+    await appDoc.save()
+    res.json({ success: true, application: appDoc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -574,7 +831,7 @@ app.post('/api/applications', authMiddleware, async (req, res) => {
     const exists = await Application.findOne({ opportunity: opportunityId, applicant: applicantId })
     if (exists) return res.status(409).json({ message: 'You have already applied to this opportunity' })
 
-    const appDoc = new Application({ opportunity: opportunityId, applicant: applicantId, coverLetter })
+  const appDoc = new Application({ opportunity: opportunityId, applicant: applicantId, coverLetter, history: [{ status: 'applied', at: new Date() }] })
     await appDoc.save()
 
     // increment applications counter on the opportunity
@@ -653,6 +910,49 @@ async function startServer() {
     app.listen(port, () => {
       console.log(`Server listening on http://localhost:${port}`)
     })
+    // Start Redis client
+    try {
+      await redisClient.ping()
+      console.log('Connected to Redis')
+    } catch (rerr) {
+      console.warn('Redis not available:', rerr && rerr.message)
+    }
+
+    // Start Kafka consumer
+    try {
+      // Check broker reachability first to avoid noisy KafkaJS connection timeouts
+  const brokers = (process.env.KAFKA_BROKER || 'localhost:9093').split(',').map(s => s.trim()).filter(Boolean)
+      async function isBrokerReachable(broker) {
+        return new Promise((resolve) => {
+          const [host, portStr] = broker.split(':')
+          const port = Number(portStr) || 9092
+          const socket = new net.Socket()
+          const timer = setTimeout(() => {
+            socket.destroy()
+            resolve(false)
+          }, 2000)
+          socket.once('error', () => { clearTimeout(timer); resolve(false) })
+          socket.connect(port, host, () => { clearTimeout(timer); socket.end(); resolve(true) })
+        })
+      }
+
+      let anyReachable = false
+      for (const b of brokers) {
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await isBrokerReachable(b)
+        console.log(`[kafka-check] broker ${b} reachable: ${ok}`)
+        if (ok) { anyReachable = true; break }
+      }
+
+      if (!anyReachable) {
+        console.warn('Kafka brokers unreachable; skipping Kafka consumer start. Set KAFKA_BROKER to a reachable broker (e.g. localhost:9093) or start Kafka.')
+      } else {
+        await startConsumer()
+        console.log('Kafka consumer started')
+      }
+    } catch (kerr) {
+      console.warn('Kafka consumer not started:', kerr && kerr.message)
+    }
   } catch (err) {
     console.error('Failed to start server:', err)
     process.exit(1)

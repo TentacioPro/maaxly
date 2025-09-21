@@ -13,6 +13,14 @@ const profileSchema = new mongoose.Schema({
   // employer-specific fields
   ,companyName: { type: String },
   companyWebsite: { type: String }
+  ,visibility: {
+    displayName: { type: Boolean, default: true },
+    fullName: { type: Boolean, default: false },
+    email: { type: Boolean, default: false },
+    title: { type: Boolean, default: false },
+    bio: { type: Boolean, default: false },
+    avatarUrl: { type: Boolean, default: true },
+  }
 }, { timestamps: true })
 
 const Profile = mongoose.models.Profile || mongoose.model('Profile', profileSchema)

@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/badge'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/ui/select'
 import { useToast } from '../components/ui/toast'
 import OpportunityForm from '@/components/OpportunityForm'
+import OpportunityInsightsPanel from '@/components/OpportunityInsightsPanel'
 
 export default function OpportunitiesPage() {
   const [items, setItems] = useState([])
@@ -77,7 +78,11 @@ export default function OpportunitiesPage() {
         if (cancelled) return
         const apps = res.data.applications || []
         const map = {}
-        apps.forEach(a => { if (a.opportunity) map[a.opportunity] = true })
+        apps.forEach(a => {
+          // a.opportunity is populated (object) so use its _id; fallback to raw id
+          const oppId = a.opportunity?._id || a.opportunity
+          if (oppId) map[String(oppId)] = true
+        })
         setApplied(map)
       } catch (err) {
         // ignore errors here (e.g., token invalid)
@@ -91,6 +96,7 @@ export default function OpportunitiesPage() {
   // role read earlier for initial state
   const canCreate = token && (role === 'employer' || role === 'admin')
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [expandedInsights, setExpandedInsights] = useState({}) // opportunityId -> true
 
   const handleCreate = async (payload) => {
     setError(null)
@@ -328,8 +334,8 @@ export default function OpportunitiesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {displayedWithView.map((it) => (
-            <Card key={it._id} className="border bg-card text-card-foreground hover:bg-accent/40 transition-colors">
-              <CardContent className="p-4">
+            <Card key={it._id} className="border bg-card text-card-foreground transition-colors">
+              <CardContent className="p-4 space-y-4">
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -365,7 +371,21 @@ export default function OpportunitiesPage() {
                       ) : (
                         <a href={`/company/${it.owner || it.ownerId || 'unknown'}`} className="text-sm font-medium text-primary no-underline">Company</a>
                       )}
-                      <div className="text-xs text-muted-foreground">{it.owner?.companyWebsite || it.owner?.companyWebsite || ''}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {it.owner?.companyWebsite && (
+                          <a
+                            href={it.owner.companyWebsite}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2 hover:text-primary"
+                            onClick={() => {
+                              try { axios.post(`/api/opportunities/${it._id}/track`, { event: 'companySite' }) } catch(e) {}
+                            }}
+                          >
+                            {new URL(it.owner.companyWebsite).hostname.replace('www.','')}
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
@@ -381,15 +401,28 @@ export default function OpportunitiesPage() {
                     >
                       View details
                     </Link>
-                    {token && role === 'student' && (
-                      <Button size="sm" onClick={() => handleApply(it._id)} disabled={!!applying[it._id] || !!applied[it._id]}>
-                        {applied[it._id] ? 'Applied' : applying[it._id] ? 'Applying…' : 'Apply'}
+                    {token && role === 'student' && !applied[it._id] && (
+                      <Button size="sm" onClick={() => handleApply(it._id)} disabled={!!applying[it._id]}>
+                        {applying[it._id] ? 'Applying…' : 'Apply'}
+                      </Button>
+                    )}
+                    {token && role === 'student' && applied[it._id] && (
+                      <Badge variant="outline" className="text-[10px]">Applied</Badge>
+                    )}
+                    {token && (role === 'employer' || role === 'admin') && (
+                      <Button size="sm" variant="outline" onClick={() => setExpandedInsights(prev => ({ ...prev, [it._id]: !prev[it._id] }))}>
+                        {expandedInsights[it._id] ? 'Hide Insights' : 'Insights'}
                       </Button>
                     )}
                     {/* contact */}
                     {it.contactEmail && <div className="text-xs text-muted-foreground ml-2">{it.contactEmail}</div>}
                   </div>
                 </div>
+                {expandedInsights[it._id] && (role === 'employer' || role === 'admin') && (
+                  <div className="pt-2 border-t">
+                    <OpportunityInsightsPanel opportunityId={it._id} canManage={role==='employer' || role==='admin'} />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

@@ -23,9 +23,13 @@ const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'))
 const ProfileViewPage = lazy(() => import('./pages/ProfileViewPage'))
 const CompanyDetailsPage = lazy(() => import('./pages/CompanyDetailsPage'))
 const PersonalizationPage = lazy(() => import('./pages/PersonalizationPage'))
+const MessagesPage = lazy(() => import('./pages/MessagesPage'))
+const EmployerAnalyticsPage = lazy(() => import('./pages/EmployerAnalyticsPage'))
+const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'))
 
 function App() {
   const [role, setRole] = useState(null) // 'student' | 'employer' | null
+  const [token, setToken] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('token') : null))
 
   // ensure axios carries token and react to auth changes (login/logout) without hard refresh
   useEffect(() => {
@@ -58,8 +62,8 @@ function App() {
     // initial sync
     syncAuthFromStorage()
 
-    const onStorage = (e) => { if (e.key === 'token') syncAuthFromStorage() }
-    const onAuthChange = () => syncAuthFromStorage()
+    const onStorage = (e) => { if (e.key === 'token') { setToken(e.newValue); syncAuthFromStorage() } }
+    const onAuthChange = () => { setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null); syncAuthFromStorage() }
     window.addEventListener('storage', onStorage)
     window.addEventListener('auth-change', onAuthChange)
     return () => {
@@ -68,6 +72,28 @@ function App() {
     }
   }, [])
 
+  // If there's no token, render a minimal router that only shows auth pages (login/signup/home)
+  if (!token) {
+    return (
+      <Router>
+        <ToasterProvider>
+          <div className="App">
+            <Suspense fallback={<div className="p-6 text-muted-foreground">Loading…</div>}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="/login" element={<LoginPage setRole={setRole} />} />
+                <Route path="/signup" element={<SignupPage setRole={setRole} />} />
+                {/* Redirect any other route to login */}
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </ToasterProvider>
+      </Router>
+    )
+  }
+
+  // Authenticated app (original behavior) - MainLayout and full routes
   return (
     <Router>
       <ToasterProvider>
@@ -75,12 +101,10 @@ function App() {
           <MainLayout>
             <Suspense fallback={<div className="p-6 text-muted-foreground">Loading…</div>}>
             <Routes>
-            <Route path="/" element={(typeof window !== 'undefined' && localStorage.getItem('token')) ? <Navigate to="/dashboard" replace /> : <Home />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/opportunities" element={<OpportunitiesPage />} />
             <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
-            <Route path="/login" element={(typeof window !== 'undefined' && localStorage.getItem('token')) ? <Navigate to="/dashboard" replace /> : <LoginPage setRole={setRole} />} />
-            <Route path="/signup" element={<SignupPage setRole={setRole} />} />
             <Route path="/profile" element={<ProfileViewPage />} />
 
             <Route
@@ -102,6 +126,9 @@ function App() {
             <Route path="/company/:id" element={<CompanyDetailsPage />} />
             <Route path="/admin" element={<Protected><AdminDashboardPage /></Protected>} />
             <Route path="/personalization" element={<PersonalizationPage />} />
+            <Route path="/messages" element={<Protected><MessagesPage /></Protected>} />
+            <Route path="/analytics" element={<Protected><EmployerAnalyticsPage /></Protected>} />
+            <Route path="/admin/analytics" element={<Protected><AdminAnalyticsPage /></Protected>} />
             </Routes>
             </Suspense>
           </MainLayout>

@@ -72,11 +72,7 @@ export default function Header() {
         {/* Personalization Window */}
         <PersonalizationWindow open={personalizeOpen} onOpenChange={setPersonalizeOpen} />
 
-        {/* Brand */}
-  <Link to={token ? "/dashboard" : "/"} className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold">M</div>
-          <span className="font-semibold text-lg hidden sm:inline">Maaxly</span>
-        </Link>
+  {/* Brand removed here - top-left branding is handled by MainLayout */}
 
   <div className="flex-1" />
 

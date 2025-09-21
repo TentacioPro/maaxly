@@ -21,7 +21,11 @@ export function ToasterProvider({ children }) {
   return (
     <ToastContext.Provider value={{ push, remove }}>
       {children}
-      <div aria-live="polite" className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+      <div
+        aria-live="polite"
+        className="fixed right-6 z-50 flex flex-col gap-2"
+        style={{ top: 'var(--header-height, 64px)' }}
+      >
         {toasts.map(t => (
           <div
             key={t.id}

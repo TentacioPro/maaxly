@@ -1,10 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useLocation, useNavigate as useRRNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { PanelLeft, User, LogOut, Palette, LayoutDashboard, Briefcase, Settings } from 'lucide-react'
+import { PanelLeft, User, LogOut, Palette, LayoutDashboard, Briefcase, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
+import { Badge } from './ui/badge'
+import { MessageSquare } from 'lucide-react'
+import { useMessaging } from '@/providers/MessagingProvider'
 import PersonalizationWindow from '@/components/PersonalizationWindow'
 import { SidebarGroup, SidebarAction } from '@/components/SidebarMenu'
+import MessagingDock from '@/components/MessagingDock'
 
 // shadcn/ui imports used across the app
 import { Button } from './ui/button'
@@ -15,6 +19,18 @@ import {
   DropdownMenuItem,
 } from './ui/dropdown-menu'
 import { Sheet, SheetTrigger, SheetContent } from './ui/sheet'
+
+function MessagingBadge() {
+  // useMessaging cannot be used at top-level in this module because MainLayout already uses hooks; define small component
+  try {
+    const { unreadCounts = {} } = useMessaging()
+    const total = Object.values(unreadCounts || {}).reduce((s, n) => s + (n || 0), 0)
+    if (!total) return null
+    return <Badge variant="destructive">{total}</Badge>
+  } catch (e) {
+    return null
+  }
+}
 
 export default function MainLayout({ children, fixed = true, fluid = false }) {
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -53,8 +69,9 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
       if (e.key === 'token') setToken(e.newValue)
     }
     const onAuthChange = () => setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null)
-    window.addEventListener('storage', onStorage)
-    window.addEventListener('auth-change', onAuthChange)
+  // messaging dock is now persistent and handles its own collapsed state
+  window.addEventListener('storage', onStorage)
+  window.addEventListener('auth-change', onAuthChange)
     return () => {
       window.removeEventListener('storage', onStorage)
       window.removeEventListener('auth-change', onAuthChange)
@@ -108,19 +125,57 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
       {/* Persistent Sidebar (md+) */}
       <aside
         className={[
-          'hidden md:flex h-full shrink-0 border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-col transition-all duration-200',
+          'hidden md:flex h-full shrink-0 border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-col transition-all duration-500 ease-in-out',
           sidebarCollapsed ? 'w-16' : 'w-64',
         ].join(' ')}
       >
-        <div className="h-16 px-3 md:px-4 flex items-center gap-3 border-b">
-          <div className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold">M</div>
-        </div>
+        {sidebarCollapsed ? (
+          <div className="h-20 px-3 md:px-4 flex items-center justify-center py-3 transition-all duration-500 ease-in-out">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(v => !v)}
+              className="w-10 h-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold"
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <div className="text-sm">M</div>
+            </button>
+          </div>
+        ) : (
+          <div className="h-20 px-3 md:px-4 py-3 flex items-center justify-between transition-all duration-500 ease-in-out">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(v => !v)}
+                className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold"
+                aria-label="Toggle sidebar"
+              >
+                <div className="text-sm">M</div>
+              </button>
+            </div>
+            <div>
+              <Button
+                size="icon"
+                variant="outline"
+                className={
+                  `md:size-8 ${sidebarCollapsed ? 'rotate-0' : 'rotate-180'} transition-transform duration-500 ease-in-out`
+                }
+                onClick={() => setSidebarCollapsed(v => !v)}
+                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                <PanelLeft />
+              </Button>
+            </div>
+          </div>
+        )}
         <nav className="flex-1 py-2">
           <SidebarGroup title={sidebarCollapsed ? '' : 'Overview'}>
             <SidebarAction
               icon={LayoutDashboard}
               active={location.pathname.startsWith('/dashboard')}
               onClick={() => navigate('/dashboard')}
+              compact={sidebarCollapsed}
             >
               <span className={sidebarCollapsed ? 'sr-only' : ''}>Dashboard</span>
             </SidebarAction>
@@ -128,9 +183,32 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
               icon={Briefcase}
               active={location.pathname.startsWith('/opportunities')}
               onClick={() => navigate('/opportunities')}
+              compact={sidebarCollapsed}
             >
               <span className={sidebarCollapsed ? 'sr-only' : ''}>Opportunities</span>
             </SidebarAction>
+            {/* Employer analytics */}
+            {typeof window !== 'undefined' && localStorage.getItem('role') === 'employer' && (
+              <SidebarAction
+                icon={LayoutDashboard}
+                active={location.pathname.startsWith('/analytics')}
+                onClick={() => navigate('/analytics')}
+                compact={sidebarCollapsed}
+              >
+                <span className={sidebarCollapsed ? 'sr-only' : ''}>Analytics</span>
+              </SidebarAction>
+            )}
+            {/* Admin analytics */}
+            {typeof window !== 'undefined' && localStorage.getItem('role') === 'admin' && (
+              <SidebarAction
+                icon={LayoutDashboard}
+                active={location.pathname.startsWith('/admin/analytics')}
+                onClick={() => navigate('/admin/analytics')}
+                compact={sidebarCollapsed}
+              >
+                <span className={sidebarCollapsed ? 'sr-only' : ''}>Analytics</span>
+              </SidebarAction>
+            )}
           </SidebarGroup>
 
           <SidebarGroup title={sidebarCollapsed ? '' : 'Account'}>
@@ -138,6 +216,7 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
               icon={User}
               active={location.pathname === '/profile'}
               onClick={() => navigate('/profile')}
+              compact={sidebarCollapsed}
             >
               <span className={sidebarCollapsed ? 'sr-only' : ''}>Profile</span>
             </SidebarAction>
@@ -145,9 +224,21 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
               icon={Settings}
               active={location.pathname === '/settings'}
               onClick={() => navigate('/settings')}
+              compact={sidebarCollapsed}
             >
               <span className={sidebarCollapsed ? 'sr-only' : ''}>Settings</span>
             </SidebarAction>
+                <SidebarAction
+                  icon={MessageSquare}
+                  active={location.pathname === '/messages'}
+                  onClick={() => navigate('/messages')}
+                  compact={sidebarCollapsed}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <span className={sidebarCollapsed ? 'sr-only' : ''}>Messages</span>
+                    <MessagingBadge />
+                  </div>
+                </SidebarAction>
           </SidebarGroup>
 
           <SidebarGroup title={sidebarCollapsed ? '' : 'Appearance'}>
@@ -155,6 +246,7 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
               icon={Palette}
               active={location.pathname === '/personalization'}
               onClick={() => navigate('/personalization')}
+              compact={sidebarCollapsed}
             >
               <span className={sidebarCollapsed ? 'sr-only' : ''}>Personalization</span>
             </SidebarAction>
@@ -163,7 +255,7 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
       </aside>
 
       {/* Right content area */}
-      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+  <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out">
         {/* Header - sticky with scroll shadow */}
         <header
         className={[
@@ -180,76 +272,65 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
               : '',
           ].join(' ')}
         >
-            {/* Left: Sidebar toggle (md+) and Mobile menu trigger (md:hidden) + Brand */}
-            <div className="flex items-center flex-1">
-              <div className="mr-2 hidden md:block">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="md:size-8"
-                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  onClick={() => setSidebarCollapsed((v) => !v)}
-                >
-                  <PanelLeft className={[sidebarCollapsed ? 'rotate-180' : '', 'transition-transform'].join(' ')} />
-                </Button>
-              </div>
-              {/* Desktop brand text to the right of the toggle */}
-              <div className="hidden md:flex items-center mr-2">
-                <span className="font-semibold text-lg select-none">Maaxly</span>
-              </div>
-
-              <div className="mr-2 md:hidden">
-                <Sheet open={navOpen} onOpenChange={setNavOpen}>
-                  <SheetTrigger asChild>
-                    <Button size="icon" variant="outline" className="md:size-8" aria-label="Open menu">
-                      <PanelLeft />
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="p-0 w-3/4 sm:max-w-sm">
-                    <div className="p-4 border-b">
-                      <div className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold">M</div>
-                    </div>
-                    <div className="p-2">
-                      <SidebarGroup title="">
-                        <SidebarAction
-                          icon={Palette}
-                          onClick={() => {
-                            setNavOpen(false)
-                            navigate('/personalization')
-                          }}
-                        >
-                          <span>Personalization</span>
-                        </SidebarAction>
-                      </SidebarGroup>
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              </div>
-      {/* Brand removed per request */}
-      <div className="hidden sm:block" />
-              <PersonalizationWindow open={personalizeOpen} onOpenChange={setPersonalizeOpen} />
+          {/* Left cluster: mobile sheet trigger, desktop toggle, brand */}
+          <div className="flex items-center gap-3">
+            <div className="mr-2 md:hidden">
+              <Sheet open={navOpen} onOpenChange={setNavOpen}>
+                <SheetTrigger asChild>
+                  <Button size="icon" variant="outline" className="md:size-8" aria-label="Open menu">
+                    <PanelLeft />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-3/4 sm:max-w-sm">
+                  <div className="p-4 border-b">
+                    <div className="w-8 h-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold">M</div>
+                  </div>
+                  <div className="p-2">
+                    <SidebarGroup title="">
+                      <SidebarAction
+                        icon={Palette}
+                        onClick={() => {
+                          setNavOpen(false)
+                          navigate('/personalization')
+                        }}
+                      >
+                        <span>Personalization</span>
+                      </SidebarAction>
+                    </SidebarGroup>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
 
-          {/* Center: Top navigation (desktop) */}
+            {/* header toggle removed - sidebar has the single toggle under logo */}
+
+            <div className="pl-2">
+              <div className="text-md font-semibold">Maaxly</div>
+            </div>
+
+            <PersonalizationWindow open={personalizeOpen} onOpenChange={setPersonalizeOpen} />
+          </div>
+
+          {/* Center nav */}
           <div className="flex-1 flex justify-center">
             <nav className="hidden lg:flex items-center space-x-4 xl:space-x-6" aria-label="Primary">
               <Link to="/dashboard" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Dashboard</Link>
               <Link to="/opportunities" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Opportunities</Link>
+              {token && localStorage.getItem('role') === 'employer' && (
+                <Link to="/analytics" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Analytics</Link>
+              )}
+              {token && localStorage.getItem('role') === 'admin' && (
+                <Link to="/admin/analytics" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Analytics</Link>
+              )}
               {token && (
                 <Link to="/profile" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Profile</Link>
-              )}
-              {/* Admin link hidden for admin users because Dashboard already shows the admin context */}
-              {false && token && localStorage.getItem('role') === 'admin' && (
-                <Link to="/admin" className="hover:text-primary text-sm font-medium transition-colors text-muted-foreground">Admin</Link>
               )}
             </nav>
           </div>
 
-          {/* Right: actions */}
-          <div className="flex-1 flex items-center justify-end gap-2 sm:gap-3">
-            <div className="hidden sm:block">
-              <ThemeToggle />
-            </div>
+          {/* Right actions */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
 
             {!token ? (
               <div className="hidden sm:flex items-center gap-2">
@@ -274,11 +355,9 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
                 </Button>
               </div>
             )}
-
-            {/* No extra mobile menu (handled on the left by md:hidden sheet) */}
           </div>
-        </div>
-        </header>
+  </div>
+  </header>
 
       {/* Main content area, mirrors golden-repo Main component behavior */}
         <main
@@ -294,6 +373,8 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
           {children}
         </main>
       </div>
+  {/* Messaging dock (LinkedIn-style) - always mounted; dock handles its own collapsed state */}
+  <MessagingDock />
     </div>
   )
 }

@@ -1,0 +1,959 @@
+{
+  "info": {
+    "name": "Maaxly API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "conversationId",
+      "value": ""
+    },
+    {
+      "key": "messageId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "opportunityId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth & Users",
+      "item": [
+        {
+          "name": "POST /api/auth/signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signup"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profile/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/profile/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/profile/student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"John Doe\",\n  \"college\": \"University of Example\",\n  \"graduationYear\": 2025,\n  \"major\": \"Computer Science\",\n  \"skills\": [\"JavaScript\", \"React\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/profile/student",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile", "student"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/profile/employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Jane Smith\",\n  \"companyName\": \"Tech Corp\",\n  \"companyWebsite\": \"https://techcorp.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/profile/employer",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile", "employer"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/users/search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/search?query=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "john"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /api/users/:id/presence",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}/presence",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{userId}}", "presence"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/onboarding/role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"role\": \"student\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/onboarding/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "onboarding", "role"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opportunities",
+      "item": [
+        {
+          "name": "GET /api/opportunities",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/opportunities",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Software Engineer Intern\",\n  \"description\": \"Exciting opportunity for students\",\n  \"type\": \"internship\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/opportunities/my",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities", "my"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/opportunities/my-listings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities/my-listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities", "my-listings"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/opportunities/:id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities/{{opportunityId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities", "{{opportunityId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/opportunities/:id/applicants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/opportunities/{{opportunityId}}/applicants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "opportunities", "{{opportunityId}}", "applicants"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/applications/my",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications", "my"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/applications/check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/check?opportunityId={{opportunityId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications", "check"],
+              "query": [
+                {
+                  "key": "opportunityId",
+                  "value": "{{opportunityId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/applications",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"opportunityId\": \"{{opportunityId}}\",\n  \"coverLetter\": \"I am interested in this position.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/applications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messaging",
+      "item": [
+        {
+          "name": "GET /api/messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/messages/:conversationId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{conversationId}}?limit=30&before=2025-09-04T00:00:00.000Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "{{conversationId}}"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "30"
+                },
+                {
+                  "key": "before",
+                  "value": "2025-09-04T00:00:00.000Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/messages/new",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/new",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "new"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/messages",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": \"{{conversationId}}\",\n  \"text\": \"Hello!\",\n  \"attachments\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /api/messages/:id/read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{messageId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "{{messageId}}", "read"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/messages/:conversationId/ack",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lastSeenMessageId\": \"{{messageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/{{conversationId}}/ack",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "{{conversationId}}", "ack"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "GET /api/events/stream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/stream?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events", "stream"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "POST /api/admin/promote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/promote",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "promote"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/admin/demote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/demote",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "demote"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "profile"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/profile/:userId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/profile/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "profile", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/admin/profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Admin User\",\n  \"title\": \"Administrator\",\n  \"phone\": \"123-456-7890\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\",\n  \"permissions\": [\"read\", \"write\"],\n  \"notes\": \"Admin notes\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "profile"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "stats"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/analytics/visits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics/visits?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics", "visits"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/analytics/top",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics/top?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics", "top"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/analytics/engagement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics/engagement",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics", "engagement"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "plans"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/admin/plans",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Basic Plan\",\n  \"priceCents\": 9900,\n  \"interval\": \"month\",\n  \"features\": [\"Feature 1\", \"Feature 2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "plans"]
+            }
+          }
+        },
+        {
+          "name": "PUT /api/admin/plans/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Plan\",\n  \"priceCents\": 19900,\n  \"interval\": \"month\",\n  \"features\": [\"Updated Feature\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/plans/plan-id-here",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "plans", "plan-id-here"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/admin/plans/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/plans/plan-id-here",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "plans", "plan-id-here"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/admin/subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/subscriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "subscriptions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Skills",
+      "item": [
+        {
+          "name": "GET /api/skills/suggest",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/skills/suggest?q=java",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "skills", "suggest"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "java"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /api/skills",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Skill\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/skills",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "skills"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "POST /api/analytics/track",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"path\": \"/dashboard\",\n  \"role\": \"student\",\n  \"userId\": \"{{userId}}\",\n  \"referrer\": \"https://example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/track",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "track"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test",
+      "item": [
+        {
+          "name": "GET /api/test",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

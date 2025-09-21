@@ -11,7 +11,9 @@ const opportunitySchema = new mongoose.Schema({
   location: { type: String },
   contactEmail: { type: String },
   contactPhone: { type: String },
-  applicationsCount: { type: Number, default: 0 }
+  applicationsCount: { type: Number, default: 0 },
+  detailViews: { type: Number, default: 0 },
+  companySiteViews: { type: Number, default: 0 }
 }, { timestamps: true })
 
 const Opportunity = mongoose.models.Opportunity || mongoose.model('Opportunity', opportunitySchema)

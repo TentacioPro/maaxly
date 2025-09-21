@@ -12,33 +12,35 @@ export function SidebarGroup({ title, children, className }) {
   )
 }
 
-export function SidebarItem({ href, active, children, onClick, icon: Icon }) {
+export function SidebarItem({ href, active, children, onClick, icon: Icon, compact }) {
   return (
     <a
       href={href}
       onClick={onClick}
       className={cn(
-        'flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors',
+        'flex items-center gap-2 rounded-sm text-sm transition-colors',
+        compact ? 'justify-center px-0 py-2' : 'px-3 py-2',
         active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
       )}
     >
-      {Icon ? <Icon className="size-4" /> : null}
+      {Icon ? <Icon className="w-4 h-4" /> : null}
       <span className="truncate">{children}</span>
     </a>
   )
 }
 
-export function SidebarAction({ children, onClick, icon: Icon, active }) {
+export function SidebarAction({ children, onClick, icon: Icon, active, compact }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full text-left flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors',
+        'w-full text-left flex items-center gap-2 rounded-sm text-sm transition-colors',
+        compact ? 'justify-center px-0 py-2' : 'px-3 py-2',
         active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
       )}
     >
-      {Icon ? <Icon className="size-4" /> : null}
+      {Icon ? <Icon className="w-4 h-4" /> : null}
       <span className="truncate">{children}</span>
     </button>
   )
