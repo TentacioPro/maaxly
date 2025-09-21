@@ -1,12 +1,33 @@
-# React + Vite
+There are two github repos which are just references for the Copilot agent for design rishab.
+Also, There are blueprint.md files, and .instruction files used to guide the AI rishab.
+LIST OF DEPENDENCIES:
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+"@radix-ui/react-checkbox": "^1.3.3",
+"@radix-ui/react-dialog": "^1.1.15",
+"@radix-ui/react-dropdown-menu": "^2.1.16",
+"@radix-ui/react-popover": "^1.1.15",
+"@radix-ui/react-radio-group": "^1.3.8",
+"@radix-ui/react-select": "^2.2.6",
+"@radix-ui/react-slider": "^1.3.6",
+"@radix-ui/react-slot": "^1.2.3",
+"axios": "^1.11.0",
+"bcrypt": "^6.0.0",
+"class-variance-authority": "^0.7.1",
+"clsx": "^2.1.1",
+"cors": "^2.8.5",
+"express": "^5.1.0",
+"jsonwebtoken": "^9.0.2",
+"lucide-react": "^0.541.0",
+"mongodb": "^6.18.0",
+"mongoose": "^8.18.0",
+"kafkajs": "^2.2.4",
+"ioredis": "^5.3.2",
+"next-themes": "^0.4.6",
+"react": "^19.1.1",
+"react-dom": "^19.1.1",
+"react-hook-form": "^7.53.0",
+"react-router-dom": "^7.8.2",
+"react-select": "^5.10.2",
+"tailwind-merge": "^3.3.1",
+"recharts": "^2.5.0",
+"tailwindcss-animate": "^1.0.7"
