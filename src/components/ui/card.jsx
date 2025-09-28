@@ -1,25 +1,28 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { useTheme } from "@/providers/ThemeProvider"
 
 function Card({ className, accent, compact = false, children, ...props }) {
-  const { tokens } = useTheme()
-
-  const accentVar = accent ? `var(--colors-${accent})` : "var(--card-accent)"
+  const accentColor = accent ? accent : "var(--border-strong)"
 
   const style = {
-    boxShadow: (tokens && tokens.cardShadow) || "0 4px 10px rgba(2,6,23,0.06)",
-    "--card-accent": accentVar,
+    background: "var(--surface-card)",
+    boxShadow: "var(--shadow-soft)",
+    borderColor: "var(--border-subtle)",
+    backdropFilter: `blur(${"var(--surface-blur)"})`,
+    WebkitBackdropFilter: `blur(${"var(--surface-blur)"})`,
+    "--card-accent": accentColor,
   }
 
   return (
     <div
       data-slot="card"
       className={cn(
-        "flex flex-col gap-4 rounded-lg border bg-card text-card-foreground",
-        "shadow-sm transition-transform duration-200 ease-out hover:shadow-md hover:-translate-y-0.5",
-        compact ? "py-3" : "py-4",
+        "group relative flex flex-col overflow-hidden rounded-3xl border bg-card text-card-foreground",
+        "transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[var(--shadow-pop)]",
+        "before:pointer-events-none before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r",
+        "before:from-transparent before:via-[var(--card-accent)] before:to-transparent",
+        compact ? "py-4" : "py-6",
         className
       )}
       style={style}
@@ -35,7 +38,8 @@ function CardHeader({ className, ...props }) {
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pb-4 has-data-[slot=card-action]:grid-cols-[1fr_auto]",
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 pt-2 pb-2",
+        "has-data-[slot=card-action]:grid-cols-[1fr_auto]",
         className
       )}
       {...props}
@@ -44,11 +48,23 @@ function CardHeader({ className, ...props }) {
 }
 
 function CardTitle({ className, ...props }) {
-  return <div data-slot="card-title" className={cn("leading-none font-semibold", className)} {...props} />
+  return (
+    <div
+      data-slot="card-title"
+      className={cn("text-[1.2rem] font-semibold leading-tight tracking-tight", className)}
+      {...props}
+    />
+  )
 }
 
 function CardDescription({ className, ...props }) {
-  return <div data-slot="card-description" className={cn("text-muted-foreground text-sm", className)} {...props} />
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  )
 }
 
 function CardAction({ className, ...props }) {
@@ -62,14 +78,23 @@ function CardAction({ className, ...props }) {
 }
 
 function CardContent({ className, ...props }) {
-  return <div data-slot="card-content" className={cn("px-6", className)} {...props} />
+  return (
+    <div
+      data-slot="card-content"
+      className={cn("px-6 pb-6 pt-2", className)}
+      {...props}
+    />
+  )
 }
 
 function CardFooter({ className, ...props }) {
   return (
     <div
       data-slot="card-footer"
-      className={cn("flex items-center px-6 border-t border-border/60 pt-3", className)}
+      className={cn(
+        "flex items-center gap-3 border-t border-border/40 px-6 pb-6 pt-4",
+        className
+      )}
       {...props}
     />
   )

@@ -12,6 +12,8 @@ import Message from '../models/Message.js'
 
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
 const dbName = process.env.MONGODB_DB || 'mvp-db'
+const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile'
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
@@ -25,6 +27,29 @@ function pick(arr, n = 1) {
     out.push(copy.splice(i, 1)[0])
   }
   return out
+}
+
+function slugifyName(name) {
+  return (name || '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+async function generateUniqueUsername(base) {
+  const baseSlug = slugifyName(base) || 'user'
+  let candidate = baseSlug
+  let n = 1
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const exists = await StudentProfile.findOne({ username: candidate }).select('_id').lean()
+    if (!exists) return candidate
+    n += 1
+    candidate = `${baseSlug}-${n}`
+  }
 }
 
 const studentNames = [
@@ -81,16 +106,29 @@ async function seedUsers() {
     const name = studentNames[i]
     const email = `student${i + 1}@example.com`
     const u = await ensureUser(email, 'student', { isStudent: true }, hashed)
+    // Ensure skills are ObjectIds by upserting Skill docs
+    const chosen = pick(skillsPool, randInt(3, 5))
+    const skillIds = []
+    for (const s of chosen) {
+      const doc = await Skill.findOneAndUpdate(
+        { nameLower: s.toLowerCase() },
+        { $setOnInsert: { name: s, nameLower: s.toLowerCase() } },
+        { upsert: true, new: true }
+      )
+      skillIds.push(doc._id)
+    }
     const profile = {
       fullName: name,
       college: colleges[i % colleges.length],
       graduationYear: 2025 + (i % 3),
       major: majors[i % majors.length],
-      skills: pick(skillsPool, randInt(3, 5))
+      skills: skillIds
     }
+    const username = await generateUniqueUsername(name)
+    const publicId = (Date.now().toString(36) + Math.random().toString(36).slice(2,8))
     await StudentProfile.updateOne(
       { userId: u._id },
-      { $set: { userId: u._id, ...profile } },
+      { $set: { userId: u._id, ...profile }, $setOnInsert: { username, publicId } },
       { upsert: true }
     )
     students.push(u)
@@ -136,8 +174,88 @@ async function seedUsers() {
 
 function isoDate(daysFromNow) {
   const d = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000)
-  return d.toISOString().slice(0, 10)
+  return d
 }
+
+async function generateOpportunityAI({ title, type, company, location }) {
+  if (!GROQ_API_KEY) return null
+  try {
+    const prompt = `Generate a 300-450 word Job Summary for a ${type} role titled "${title}" at ${company || 'a tech company'} (${location || 'Remote'}). Use these headers and concise breakdowns:
+
+Title: (single line)
+Overview: (3-4 sentences)
+What You’ll Do: (5-8 bullet points)
+What You’ll Bring: (5-8 bullet points)
+Nice to Have: (3-6 bullet points)
+Team & Impact: (2-4 sentences)
+
+Also provide structured metadata. Output strict JSON only with keys:
+- summaryMarkdown: string (markdown with the above headers and bullets)
+- description: string (plain text 3-6 sentences overview)
+- skills: array of 6-12 concise skill names
+- categories: array of 2-5 domain tags
+- timezones: array like ["Americas","EMEA","APAC"]
+- salary: string like "$110k–$140k + equity" or "Stipend: $1500/mo"
+`
+
+    // Prefer official SDK if available
+    let content = ''
+    try {
+      const { default: Groq } = await import('groq-sdk')
+      const client = new Groq({ apiKey: GROQ_API_KEY })
+      const completion = await client.chat.completions.create({
+        model: GROQ_MODEL,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant that outputs strict JSON only.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+      content = completion?.choices?.[0]?.message?.content || ''
+    } catch (sdkErr) {
+      // Fallback to fetch
+      const f = typeof fetch === 'function' ? fetch : (await import('node-fetch')).default
+      const res = await f('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          temperature: 0.7,
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant that outputs strict JSON only.' },
+            { role: 'user', content: prompt }
+          ]
+        })
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        console.warn('[groq] non-200', res.status, text)
+        return null
+      }
+      const data = await res.json()
+      content = data?.choices?.[0]?.message?.content || ''
+    }
+    // Best-effort JSON parse; strip code fences if present
+    const cleaned = content.trim().replace(/^```json\n?|```$/g, '')
+    const parsed = JSON.parse(cleaned)
+    const out = {
+      summaryMarkdown: typeof parsed.summaryMarkdown === 'string' ? parsed.summaryMarkdown : '',
+      description: typeof parsed.description === 'string' ? parsed.description : '',
+      skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+      categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+      timezones: Array.isArray(parsed.timezones) ? parsed.timezones : [],
+      salary: typeof parsed.salary === 'string' ? parsed.salary : ''
+    }
+    return out
+  } catch (err) {
+    console.warn('[groq] generation failed:', err && err.message)
+    return null
+  }
+}
+import Skill from '../models/Skill.js'
 
 async function seedOpportunities(employers) {
   const locations = ['Remote', 'New York, NY', 'San Francisco, CA', 'Austin, TX', 'Seattle, WA']
@@ -149,18 +267,55 @@ async function seedOpportunities(employers) {
     for (const spec of chosen) {
       const title = `${spec.title} @ ${owner._id.toString().slice(-4)}`
       const filter = { owner: owner._id, title }
+      const location = locations[randInt(0, locations.length - 1)]
+      const employerProfile = await EmployerProfile.findOne({ userId: owner._id }).lean()
+      let ai = await generateOpportunityAI({ title: spec.title, type: spec.type, company: employerProfile?.companyName, location })
+      if (!ai) {
+        // Fallback manual values
+        ai = {
+          description: `Join our team as a ${spec.title}. Work on impactful projects with a collaborative, product-minded team. You will ship features, review code, and help improve our engineering culture.`,
+          skills: pick(skillsPool, randInt(5, 8)),
+          categories: ['software', 'engineering'],
+          timezones: ['Americas', 'EMEA'],
+          salary: spec.type === 'internship' ? 'Stipend: $1500–$2500/mo' : '$110k–$140k + equity'
+        }
+      }
+
+  // Normalize values
+  const aiSkills = (ai.skills || []).map(s => s.toString().trim()).filter(Boolean)
+  const skillsCsv = aiSkills.join(', ')
+      // Upsert Skill docs and collect ObjectIds
+      const skillIds = []
+      for (const s of aiSkills) {
+        // eslint-disable-next-line no-await-in-loop
+        const doc = await Skill.findOneAndUpdate(
+          { nameLower: s.toLowerCase() },
+          { $setOnInsert: { name: s, nameLower: s.toLowerCase() } },
+          { upsert: true, new: true }
+        )
+        skillIds.push(doc._id)
+      }
+      const categoriesArr = (ai.categories || []).map(s => s.toString().trim()).filter(Boolean)
+      const timezonesArr = (ai.timezones || []).map(s => s.toString().trim()).filter(Boolean)
+      const salary = (ai.salary || '').toString()
+
       const opp = await Opportunity.findOneAndUpdate(
         filter,
         {
           $set: {
-            description: `Join our team as a ${spec.title}. Work on impactful projects with a collaborative team.`,
+            description: ai.summaryMarkdown || ai.description || `Join our team as a ${spec.title}.`,
             type: spec.type,
             owner: owner._id,
-            skillset: pick(skillsPool, randInt(3, 5)).join(', '),
+            skillset: skillsCsv,
+            skills: skillsCsv,
+            skillIds,
             requirements: 'Strong problem-solving skills; team player; eagerness to learn.',
             applicationDeadline: isoDate(randInt(15, 60)),
-            location: locations[randInt(0, locations.length - 1)],
-            contactEmail: (await EmployerProfile.findOne({ userId: owner._id }).lean())?.companyWebsite?.replace('https://', 'jobs@') || 'jobs@example.com',
+            location,
+            categories: categoriesArr,
+            timezones: timezonesArr,
+            salary,
+            contactEmail: employerProfile?.companyWebsite?.replace('https://', 'jobs@') || 'jobs@example.com',
             contactPhone: '+1-555-0100'
           }
         },
@@ -238,6 +393,39 @@ async function seedConversations(students, employers) {
   }
 }
 
+async function verifySeed() {
+  try {
+    const usersCount = await User.countDocuments()
+    const skillsCount = await Skill.countDocuments()
+    const oppCount = await Opportunity.countDocuments()
+    console.log(`[verify] Users: ${usersCount}, Skills: ${skillsCount}, Opportunities: ${oppCount}`)
+
+    const sampleUsers = await User.find({}).select('email role').limit(5).lean()
+    console.log('[verify] Sample users:', sampleUsers.map(u => `${u.email} (${u.role||'n/a'})`).join(', '))
+
+    const opps = await Opportunity.find({}).select('title skills skillIds').lean()
+    let mismatches = 0
+    for (const o of opps) {
+      const names = (o.skills || '').split(',').map(s=>s.trim()).filter(Boolean)
+      if (!o.skillIds || !o.skillIds.length) {
+        console.warn(`[verify] Opportunity missing skillIds: ${o.title}`)
+        mismatches += 1
+        continue
+      }
+      const docs = await Skill.find({ _id: { $in: o.skillIds } }).select('name').lean()
+      const docNamesLower = new Set(docs.map(d => d.name.toLowerCase()))
+      const nameMatch = names.every(n => docNamesLower.has(n.toLowerCase()))
+      if (!nameMatch) {
+        console.warn(`[verify] Skill names vs IDs mismatch for: ${o.title}`)
+        mismatches += 1
+      }
+    }
+    if (mismatches === 0) console.log('[verify] All opportunities have matching skillIds')
+  } catch (e) {
+    console.warn('[verify] skipped due to error:', e && e.message)
+  }
+}
+
 async function main() {
   await mongoose.connect(mongoUri, { dbName })
   console.log(`Connected to MongoDB at ${mongoUri}, db '${dbName}'`)
@@ -256,6 +444,8 @@ async function main() {
   const convoCount = await Conversation.countDocuments()
   const msgCount = await Message.countDocuments()
   console.log(`Conversations: ${convoCount}, Messages: ${msgCount}`)
+
+  await verifySeed()
 
   await mongoose.disconnect()
   console.log('Seeding complete.')

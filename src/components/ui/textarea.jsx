@@ -7,11 +7,19 @@ const Textarea = React.forwardRef(function Textarea({ className, ...props }, ref
       ref={ref}
       data-slot="textarea"
       className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border border-border bg-input/80 text-foreground flex min-h-[80px] w-full rounded-md px-3 py-2 text-sm shadow-sm transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        "file:text-foreground placeholder:text-muted-foreground/70 selection:bg-primary selection:text-primary-foreground",
+        "flex min-h-[110px] w-full rounded-2xl border border-border/50 bg-transparent px-4 py-3 text-sm font-medium text-foreground shadow-sm transition-all duration-200",
+        "backdrop-blur-xl",
+        "focus-visible:border-primary/70 focus-visible:ring-4 focus-visible:ring-primary/15",
+        "hover:border-border",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive/80",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}
+      style={{
+        background: 'var(--surface-input)',
+        boxShadow: 'var(--shadow-input)',
+      }}
       {...props}
     />
   )

@@ -25,10 +25,9 @@ export default function ProfileVisibilitySettings() {
     let mounted = true
     if (!userId) return
     setLoading(true)
-    axios.get(`/api/profiles/${userId}`)
+    axios.get('/api/profile/me', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(res => {
         if (!mounted) return
-        // if owner view, API returns full profile including visibility
         const vis = (res.data && res.data.profile && res.data.profile.visibility) ? res.data.profile.visibility : null
         if (vis) setVisibility(v => ({ ...v, ...vis }))
       })
@@ -47,8 +46,7 @@ export default function ProfileVisibilitySettings() {
     setError(null)
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      const res = await axios.patch(`/api/profiles/${userId}/visibility`, visibility, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      // invalidate cache for this user so overlays pick up new visibility
+      const res = await axios.patch('/api/profile', { visibility }, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       invalidate(userId)
       toast.push({ title: 'Saved', description: 'Visibility settings updated.' })
       return res.data
@@ -64,7 +62,7 @@ export default function ProfileVisibilitySettings() {
     if (!userId) return
     setLoading(true)
     try {
-      const res = await axios.get(`/api/profiles/${userId}`)
+      const res = await axios.get('/api/profile/me', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       const vis = (res.data && res.data.profile && res.data.profile.visibility) ? res.data.profile.visibility : null
       if (vis) setVisibility(v => ({ ...v, ...vis }))
     } catch (e) {

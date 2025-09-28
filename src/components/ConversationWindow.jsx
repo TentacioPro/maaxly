@@ -85,7 +85,7 @@ export default function ConversationWindow({ conversation, offset = 0, onClose, 
     loadAndAck()
 
     return () => { mountedRef.current = false }
-  }, [convId, loadMessages, ackConversation])
+  }, [convId])
 
   // Drag to resize handlers
   function startDrag(e) {

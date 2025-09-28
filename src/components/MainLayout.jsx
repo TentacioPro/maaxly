@@ -90,6 +90,7 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
     ['/login', '/signup', '/create-profile/student', '/create-profile/employer', '/onboarding']
   ), [])
   const noScroll = noScrollRoutes.some((p) => location.pathname.startsWith(p))
+  const hideMessagingDock = location.pathname.startsWith('/u/') || location.pathname.startsWith('/s/')
 
   function unlockUI() {
     try {
@@ -119,7 +120,6 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
   unlockUI()
   navigate('/', { replace: true })
   }
-
   return (
     <div className="h-screen overflow-hidden bg-background flex">
       {/* Persistent Sidebar (md+) */}
@@ -374,7 +374,7 @@ export default function MainLayout({ children, fixed = true, fluid = false }) {
         </main>
       </div>
   {/* Messaging dock (LinkedIn-style) - always mounted; dock handles its own collapsed state */}
-  <MessagingDock />
+  {!hideMessagingDock && <MessagingDock />}
     </div>
   )
 }

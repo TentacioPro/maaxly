@@ -9,6 +9,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '.
 import { useToast } from '../components/ui/toast'
 import OpportunityForm from '@/components/OpportunityForm'
 import OpportunityInsightsPanel from '@/components/OpportunityInsightsPanel'
+import { MapPin, Timer } from 'lucide-react'
 
 export default function OpportunitiesPage() {
   const [items, setItems] = useState([])
@@ -216,7 +217,7 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="w-full md:w-[80%] mx-auto px-3">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h2 className="text-2xl font-semibold">Opportunities</h2>
         <div className="flex items-center gap-2">
           <Button
@@ -265,12 +266,12 @@ export default function OpportunitiesPage() {
           placeholder="Search title or description"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full"
+          className="w-full h-10"
         />
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-2">
           {role !== 'employer' && (
             <Button variant={view === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setView('all')}>All</Button>
@@ -307,14 +308,13 @@ export default function OpportunitiesPage() {
       </div>
 
       {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="border bg-card">
-              <CardContent className="p-4 animate-pulse space-y-3">
-                <div className="h-5 w-1/2 bg-muted rounded" />
+              <CardContent className="p-3 animate-pulse space-y-2">
+                <div className="h-4 w-1/2 bg-muted rounded" />
                 <div className="h-3 w-24 bg-muted rounded" />
-                <div className="h-4 w-full bg-muted rounded" />
-                <div className="h-4 w-3/4 bg-muted rounded" />
+                <div className="h-3.5 w-full bg-muted rounded" />
               </CardContent>
             </Card>
           ))}
@@ -332,102 +332,128 @@ export default function OpportunitiesPage() {
             : 'No opportunities found.'}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {displayedWithView.map((it) => (
-            <Card key={it._id} className="border bg-card text-card-foreground transition-colors">
-              <CardContent className="p-4 space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-semibold leading-6 truncate max-w-[22ch]" title={it.title}>{it.title}</h3>
-                      <Badge variant="muted" className="capitalize">{it.type}</Badge>
+        <div className="grid grid-cols-1 gap-3">
+          {displayedWithView.map((it) => (
+            <Card key={it._id} className="rounded-2xl border border-border/60 bg-muted/30 text-card-foreground hover:bg-muted/40 hover:shadow-sm transition-colors">
+              <Link
+                to={`/dashboard/listing/${it._id}`}
+                className="block no-underline text-inherit"
+                onClick={() => { try { sessionStorage.setItem('opps:lastFromList','1'); sessionStorage.setItem('opps:scrollY', String(window.scrollY||0)) } catch(e) {} }}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className="h-10 w-10 rounded-full border bg-muted/40 flex items-center justify-center text-[12px] font-semibold text-foreground/80 shrink-0">
+                      {getInitials(it.owner?.companyName || it.title)}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">{new Date(it.createdAt).toLocaleDateString()}</div>
-                    <p className="mt-2 text-sm text-muted-foreground/90 line-clamp-2">{it.description || '—'}</p>
-
-                    {/* Requirements snippet */}
-                    {it.requirements && (
-                      <div className="mt-2 text-sm text-muted-foreground line-clamp-2">Reqs: {it.requirements}</div>
-                    )}
-
-                    {/* Skillset badges */}
-                    {it.skillset && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(it.skillset || '').split(',').map(s => s.trim()).filter(Boolean).slice(0,5).map((s, idx) => (
-                          <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{s}</span>
-                        ))}
+                    {/* Main column */}
+                    <div className="min-w-0 flex-1">
+                      {/* Header: title + type chip, apply to the right */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex items-center gap-2">
+                          <h3 className="text-[17px] font-semibold leading-7 truncate max-w-[56ch]" title={it.title}>{it.title}</h3>
+                          {it.type && (
+                            <span
+                              className="inline-flex items-center rounded-full border bg-primary/20 text-primary border-primary/30 px-3 py-[5px] text-[12px] font-semibold shadow-sm capitalize"
+                            >{it.type}</span>
+                          )}
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2" onClick={(e)=>e.preventDefault()}>
+                          {/* Apply in header (prevent link navigation) */}
+                          {token && role === 'student' && !applied[it._id] && (
+                            <Button size="sm" className="min-w-[92px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleApply(it._id) }} disabled={!!applying[it._id]}>
+                              {applying[it._id] ? 'Applying…' : 'Apply'}
+                            </Button>
+                          )}
+                          {token && role === 'student' && applied[it._id] && (
+                            <Badge variant="secondary" className="rounded-full text-[11px] font-semibold capitalize">Applied</Badge>
+                          )}
+                          {token && (role === 'employer' || role === 'admin') && (
+                            <Button size="sm" variant="outline" className="min-w-[100px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpandedInsights(prev => ({ ...prev, [it._id]: !prev[it._id] })) }}>
+                              {expandedInsights[it._id] ? 'Hide Insights' : 'Insights'}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    )}
 
-                    <div className="mt-3 text-sm">
-                      <div className="text-xs text-muted-foreground">{it.location || '—'}</div>
-                      {it.applicationDeadline && <div className="text-xs text-muted-foreground">Deadline: {new Date(it.applicationDeadline).toLocaleDateString()}</div>}
-                    </div>
-
-                    {/* Company two-liner */}
-                    <div className="mt-3 text-sm">
-                      {it.owner?.companyName ? (
-                        <a href={`/company/${it.owner._id}`} className="text-sm font-medium text-primary no-underline">{it.owner.companyName}</a>
-                      ) : (
-                        <a href={`/company/${it.owner || it.ownerId || 'unknown'}`} className="text-sm font-medium text-primary no-underline">Company</a>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        {it.owner?.companyWebsite && (
-                          <a
-                            href={it.owner.companyWebsite}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline underline-offset-2 hover:text-primary"
-                            onClick={() => {
-                              try { axios.post(`/api/opportunities/${it._id}/track`, { event: 'companySite' }) } catch(e) {}
-                            }}
-                          >
-                            {new URL(it.owner.companyWebsite).hostname.replace('www.','')}
-                          </a>
+                      {/* Meta row under header */}
+                      <div className="mt-1 text-[13px] text-muted-foreground flex flex-wrap items-center gap-4">
+                        {it.owner?.companyName && (
+                          <span className="font-medium text-foreground/90 truncate max-w-[40ch]">{it.owner.companyName}</span>
+                        )}
+                        {it.location && (
+                          <span className="inline-flex items-center gap-1.5"><MapPin size={14} className="opacity-80" />{it.location}</span>
+                        )}
+                        {it.applicationDeadline && (
+                          <span className="inline-flex items-center gap-1.5"><Timer size={14} className="opacity-80" />Deadline: {new Date(it.applicationDeadline).toLocaleDateString()}</span>
                         )}
                       </div>
+
+                      {/* Description */}
+                      {it.description && (
+                        <p className="mt-1.5 text-[13px] text-foreground/90 line-clamp-1">{it.description}</p>
+                      )}
+
+                      {/* Skill chips */}
+                      {it.skillset && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(it.skillset || '')
+                            .split(',')
+                            .map(s => s.trim())
+                            .filter(Boolean)
+                            .slice(0,6)
+                            .map((s, idx) => {
+                              const h = Array.from(s).reduce((a,c)=>a+c.charCodeAt(0),0)
+                              const varName = h % 3 === 0 ? '--primary' : h % 3 === 1 ? '--accent' : '--ring'
+                              const style = {
+                                background: `hsl(var(${varName}) / 0.10)`,
+                                color: `hsl(var(${varName}))`,
+                                borderColor: `hsl(var(${varName}) / 0.28)`
+                              }
+                              return (
+                                <span key={idx} className="text-[12px] px-2 py-[3px] rounded-md border capitalize" style={style}>{s}</span>
+                              )
+                            })}
+                        </div>
+                      )}
+
+                      {/* Footer: uploaded time bottom-left */}
+                      {it.createdAt && (
+                        <div className="mt-2 text-[12px] text-muted-foreground">{formatRelativeDays(it.createdAt)}</div>
+                      )}
                     </div>
                   </div>
-                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
-                    <Link
-                      to={`/dashboard/listing/${it._id}`}
-                      className="text-sm underline underline-offset-4"
-                      onClick={() => {
-                        try {
-                          sessionStorage.setItem('opps:lastFromList', '1')
-                          sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0))
-                        } catch (e) {}
-                      }}
-                    >
-                      View details
-                    </Link>
-                    {token && role === 'student' && !applied[it._id] && (
-                      <Button size="sm" onClick={() => handleApply(it._id)} disabled={!!applying[it._id]}>
-                        {applying[it._id] ? 'Applying…' : 'Apply'}
-                      </Button>
-                    )}
-                    {token && role === 'student' && applied[it._id] && (
-                      <Badge variant="outline" className="text-[10px]">Applied</Badge>
-                    )}
-                    {token && (role === 'employer' || role === 'admin') && (
-                      <Button size="sm" variant="outline" onClick={() => setExpandedInsights(prev => ({ ...prev, [it._id]: !prev[it._id] }))}>
-                        {expandedInsights[it._id] ? 'Hide Insights' : 'Insights'}
-                      </Button>
-                    )}
-                    {/* contact */}
-                    {it.contactEmail && <div className="text-xs text-muted-foreground ml-2">{it.contactEmail}</div>}
-                  </div>
-                </div>
-                {expandedInsights[it._id] && (role === 'employer' || role === 'admin') && (
-                  <div className="pt-2 border-t">
-                    <OpportunityInsightsPanel opportunityId={it._id} canManage={role==='employer' || role==='admin'} />
-                  </div>
-                )}
-              </CardContent>
+
+                  {expandedInsights[it._id] && (role === 'employer' || role === 'admin') && (
+                    <div className="pt-2 border-t mt-3">
+                      <OpportunityInsightsPanel opportunityId={it._id} canManage={role==='employer' || role==='admin'} />
+                    </div>
+                  )}
+                </CardContent>
+              </Link>
             </Card>
           ))}
         </div>
       )}
     </div>
   )
+}
+
+function getInitials(name) {
+  if (!name) return '—'
+  const parts = String(name).trim().split(/\s+/)
+  const first = parts[0]?.[0] || ''
+  const second = parts[1]?.[0] || ''
+  return (first + second).toUpperCase()
+}
+
+function formatRelativeDays(dateLike) {
+  try {
+    const d = new Date(dateLike)
+    const diff = Math.max(0, Date.now() - d.getTime())
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    if (days === 0) return 'Today'
+    if (days === 1) return '1 day ago'
+    return `${days} days ago`
+  } catch { return '' }
 }

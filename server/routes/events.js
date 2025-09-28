@@ -50,9 +50,10 @@ router.get('/stream', (req, res) => {
   const sub = new Redis(redisUrl)
   // also subscribe to global profile updates channel so users can receive profile changes
   const profileChannel = 'profiles:updates'
+  const analyticsChannel = `analytics:opportunity:${userId}`
 
-  sub.subscribe(channel, profileChannel).then(() => {
-    console.info(`[SSE] subscribed ${userId} -> ${channel} & ${profileChannel}`)
+  sub.subscribe(channel, profileChannel, analyticsChannel).then(() => {
+    console.info(`[SSE] subscribed ${userId} -> ${channel}, ${profileChannel}, ${analyticsChannel}`)
   }).catch((err) => {
     console.error('Failed to subscribe to redis channels', err)
   })
@@ -65,6 +66,10 @@ router.get('/stream', (req, res) => {
         if (payload && payload.userId && String(payload.userId) === String(userId)) {
           send('profile', payload.profile || payload)
         }
+        return
+      }
+      if (ch === analyticsChannel) {
+        send('analytics', payload)
         return
       }
       console.info(`[SSE] publish -> ${ch}:`, payload && (payload.type || ''), payload && payload.message ? payload.message : payload)

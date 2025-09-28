@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Dialog, DialogContent } from './dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './dialog'
 import { cn } from '@/lib/utils'
 
 export function Modal({ open, onOpenChange, onClose, children, className, ...props }) {
@@ -25,6 +25,22 @@ export function ModalHeader({ children, className, ...props }) {
     <div className={cn('px-6 pt-6 pb-2', className)} {...props}>
       {children}
     </div>
+  )
+}
+
+export function ModalTitle({ children, className, ...props }) {
+  return (
+    <DialogTitle className={cn('text-lg font-semibold text-foreground', className)} {...props}>
+      {children}
+    </DialogTitle>
+  )
+}
+
+export function ModalDescription({ children, className, ...props }) {
+  return (
+    <DialogDescription className={cn('text-sm text-muted-foreground', className)} {...props}>
+      {children}
+    </DialogDescription>
   )
 }
 

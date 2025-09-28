@@ -5,7 +5,7 @@ import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/card
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { useToast } from '../components/ui/toast'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, MapPin, Timer } from 'lucide-react'
 import ApplicationStatusStepper from '@/components/ApplicationStatusStepper'
 import { Skeleton } from '@/components/ui/skeleton'
 import ApplicantProfileModal from '@/components/ApplicantProfileModal'
@@ -25,6 +25,9 @@ export default function ListingDetailsPage() {
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState(null)
   const [viewApplicationId, setViewApplicationId] = useState(null)
+  const [attachments, setAttachments] = useState([])
+  const [uploadingAtt, setUploadingAtt] = useState(false)
+  const [kpis, setKpis] = useState({ detail: 0, site: 0 })
 
   useEffect(() => {
     let cancelled = false
@@ -38,7 +41,7 @@ export default function ListingDetailsPage() {
         try {
           const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
             if (token) {
-              axios.post(`/api/opportunities/${id}/track`, { type: 'detail' }, { headers: { Authorization: `Bearer ${token}` } }).catch(()=>{})
+              axios.post(`/api/opportunities/${id}/track`, { event: 'detail' }, { headers: { Authorization: `Bearer ${token}` } }).catch(()=>{})
             }
         } catch (e) {}
 
@@ -85,6 +88,15 @@ export default function ListingDetailsPage() {
           // ignore
         }
 
+        // Attachments list (auth required)
+        try {
+          const tokenA = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+          if (tokenA) {
+            const listRes = await axios.get(`/api/opportunities/${id}/attachments`, { headers: { Authorization: `Bearer ${tokenA}` } })
+            if (!cancelled) setAttachments(listRes.data.attachments || [])
+          }
+        } catch (_) {}
+
         // Insights (employer or admin) full dashboard
         try {
           const localRole3 = typeof window !== 'undefined' ? localStorage.getItem('role') : null
@@ -113,6 +125,25 @@ export default function ListingDetailsPage() {
     return () => { cancelled = true }
   }, [id])
 
+  // Live analytics via SSE for owner/admin
+  useEffect(() => {
+    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    if (!token || (role !== 'employer' && role !== 'admin')) return
+    const es = new EventSource(`/api/events/stream?token=${encodeURIComponent(token)}`)
+    const handler = (e) => {
+      try {
+        const payload = JSON.parse(e.data)
+        if (payload && String(payload.opportunityId) === String(id)) {
+          setKpis({ detail: payload.detailViews || 0, site: payload.companySiteViews || 0 })
+        }
+      } catch (_) {}
+    }
+    es.addEventListener('analytics', handler)
+    es.addEventListener('error', () => { try { es.close() } catch(_){ } })
+    return () => { try { es.removeEventListener('analytics', handler); es.close() } catch(_){} }
+  }, [id])
+
   if (loading) return <div style={{ padding: 24 }}>Loading...</div>
   if (error) return <div style={{ padding: 24, color: 'crimson' }}>{error}</div>
   if (!opportunity) return <div style={{ padding: 24 }}>Opportunity not found</div>
@@ -120,82 +151,210 @@ export default function ListingDetailsPage() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
   return (
-    <div className="w-full mx-auto max-w-[1400px] px-4 py-6 space-y-8">
-      <Card className="border bg-card text-card-foreground">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                type="button"
-                aria-label="Back to opportunities"
-                className="inline-flex items-center justify-center h-8 w-8 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => {
-                  // If we navigated here from an opportunities list click, use history.back() to preserve exact scroll
-                  const fromList = typeof window !== 'undefined' && sessionStorage.getItem('opps:lastFromList')
-                  if (fromList) {
-                    try { sessionStorage.removeItem('opps:lastFromList') } catch (e) {}
-                    window.history.back()
-                  } else {
-                    // Otherwise go to /opportunities and signal the list to restore once if we have a stored scrollY
-                    try { sessionStorage.setItem('opps:restoreOnce', '1') } catch (e) {}
-                    navigate('/opportunities')
-                  }
-                }}
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold truncate" title={opportunity.title}>{opportunity.title}</h2>
-                <div className="text-xs text-muted-foreground mt-1">Skill set: {opportunity.skillset || opportunity.skills || '—'}</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <Badge variant="muted" className="capitalize">{opportunity.type}</Badge>
+    <div className="w-full mx-auto max-w-[1440px] px-4 py-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            aria-label="Back to opportunities"
+            className="inline-flex items-center justify-center h-9 w-9 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => {
+              const fromList = typeof window !== 'undefined' && sessionStorage.getItem('opps:lastFromList')
+              if (fromList) {
+                try { sessionStorage.removeItem('opps:lastFromList') } catch (e) {}
+                window.history.back()
+              } else {
+                try { sessionStorage.setItem('opps:restoreOnce', '1') } catch (e) {}
+                navigate('/opportunities')
+              }
+            }}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold truncate" title={opportunity.title}>{opportunity.title}</h1>
+            <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+              {opportunity.location && <span className="inline-flex items-center gap-1.5"><MapPin size={16} className="opacity-80" />{opportunity.location}</span>}
+              {opportunity.applicationDeadline && <span className="inline-flex items-center gap-1.5"><Timer size={16} className="opacity-80" />Apply before: {new Date(opportunity.applicationDeadline).toLocaleDateString()}</span>}
             </div>
           </div>
-        </CardHeader>
+        </div>
+        <div className="shrink-0">
+          <Badge variant="muted" className="capitalize rounded-full px-3 py-1">{opportunity.type}</Badge>
+        </div>
+      </div>
 
-        <CardContent>
-          <div className="text-sm text-muted-foreground mb-3">{opportunity.description || '—'}</div>
-          {opportunity.companyWebsite && (
-            <div className="mb-6">
-              <a
-                href={opportunity.companyWebsite}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  try {
-                    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-                    if (token) {
-                      axios.post(`/api/opportunities/${id}/track`, { type: 'companySite' }, { headers: { Authorization: `Bearer ${token}` } }).catch(()=>{})
-                    }
-                  } catch (e) {}
-                }}
-                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition"
-              >Visit Company Site</a>
-            </div>
-          )}
-          {hasApplied && (
-            <div className="mb-6 p-3 rounded-md border bg-card/60">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Your Application Status</div>
-              <ApplicationStatusStepper status={applicationMeta?.status || 'applied'} />
-              {applicationMeta?.history?.length > 0 && (
-                <ul className="mt-3 space-y-1 text-[11px]">
-                  {applicationMeta.history.slice().reverse().map((h,i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 rounded-full bg-primary/70" />
-                      <span className="capitalize font-medium">{h.status}</span>
-                      <span className="text-muted-foreground text-[10px]">{new Date(h.at || h.createdAt || applicationMeta.createdAt).toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
+      {/* Body: 60/40 layout (left text, right cards) */}
+  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        {/* Left column: text content */}
+  <div className="w-full sm:w-7/12 min-w-0">
+          <Card className="border bg-card">
+            <CardHeader className="pb-2"><h2 className="text-base font-semibold">Job Summary</h2></CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="prose prose-sm max-w-none text-foreground/90">
+                {opportunity.description ? (
+                  <p className="leading-7 whitespace-pre-line">{opportunity.description}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No description provided.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right column: stacked cards */}
+  <div className="space-y-4 w-full sm:w-5/12 sm:shrink-0">
+          {/* Apply Card */}
+          <Card className="border bg-muted/30">
+            <CardContent className="p-4">
+              {token && role === 'student' && (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-muted-foreground">Ready to apply?</div>
+                  {!hasApplied ? (
+                    <Button
+                      onClick={async () => {
+                        setError(null)
+                        setApplying(true)
+                        try {
+                          const localToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+                          if (!localToken) { window.location.href = '/login'; return }
+                          const headers = { Authorization: `Bearer ${localToken}` }
+                          const res = await axios.post('/api/applications', { opportunityId: id }, { headers })
+                          toast.push({ title: 'Application submitted', description: 'Your application was received.' })
+                          setHasApplied(true)
+                        } catch (err) {
+                          const msg = err.response?.data?.message || err.message
+                          toast.push({ title: 'Apply failed', description: msg, variant: 'destructive' })
+                        } finally {
+                          setApplying(false)
+                        }
+                      }}
+                      disabled={applying}
+                    >
+                      {applying ? 'Applying…' : 'Apply Now'}
+                    </Button>
+                  ) : (
+                    <Badge variant="secondary" className="rounded-full">Applied</Badge>
+                  )}
+                </div>
               )}
-            </div>
+              {!token && (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-muted-foreground">Login to apply</div>
+                  <Button asChild><a href="/login">Login</a></Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Meta cards */}
+          <Card className="border bg-card">
+            <CardHeader className="pb-2"><h3 className="text-sm font-semibold">About the job</h3></CardHeader>
+            <CardContent className="p-4 pt-0 space-y-2 text-sm">
+              {opportunity.applicationDeadline && (
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">Apply before</span><span className="font-medium">{new Date(opportunity.applicationDeadline).toLocaleDateString()}</span></div>
+              )}
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Posted on</span><span className="font-medium">{new Date(opportunity.createdAt || opportunity.updatedAt).toLocaleDateString()}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Job type</span><span className="font-medium capitalize">{opportunity.type}</span></div>
+            </CardContent>
+          </Card>
+
+          {(role === 'employer' || role === 'admin') && (
+            <Card className="border bg-card">
+              <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Attachments</h3></CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <div className="text-muted-foreground">Share job spec, benefits PDF, etc.</div>
+                  <label className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded bg-primary text-primary-foreground cursor-pointer">
+                    <input type="file" className="hidden" onChange={async (e)=>{
+                      const f = e.target.files && e.target.files[0]
+                      if (!f) return
+                      setUploadingAtt(true)
+                      try {
+                        const token = localStorage.getItem('token')
+                        const fd = new FormData()
+                        fd.append('file', f)
+                        const res = await axios.post(`/api/opportunities/${id}/attachments`, fd, { headers: { Authorization: `Bearer ${token}` } })
+                        setAttachments(prev => [res.data.attachment, ...prev])
+                      } catch (err) {
+                        const msg = err.response?.data?.message || err.message
+                        toast.push({ title: 'Upload failed', description: msg, variant: 'destructive' })
+                      } finally { setUploadingAtt(false); e.target.value = '' }
+                    }} />
+                    {uploadingAtt ? 'Uploading…' : 'Upload'}
+                  </label>
+                </div>
+                <ul className="space-y-2">
+                  {attachments.length ? attachments.map(a => (
+                    <li key={String(a.fileId)} className="flex items-center justify-between gap-2">
+                      <div className="truncate" title={a.filename}>{a.filename}</div>
+                      <a className="text-xs text-primary hover:underline" href={`/api/opportunities/${id}/attachments/${a.fileId}`} target="_blank" rel="noreferrer">View</a>
+                    </li>
+                  )) : <div className="text-xs text-muted-foreground">No attachments yet.</div>}
+                </ul>
+              </CardContent>
+            </Card>
           )}
-          <div className="text-sm"><strong>Type:</strong> <span className="ml-1">{opportunity.type}</span></div>
-          <div className="text-sm mt-2"><strong>Location:</strong> <span className="ml-1">{opportunity.location || '—'}</span></div>
+
+          {opportunity.location && (
+            <Card className="border bg-card">
+              <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Location Requirements</h3></CardHeader>
+              <CardContent className="p-4 pt-0 text-sm flex items-center gap-2"><MapPin size={16} />{opportunity.location}</CardContent>
+            </Card>
+          )}
+
+          {(opportunity.skillset || opportunity.skills) && (
+            <Card className="border bg-card">
+              <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Skills</h3></CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="flex flex-wrap gap-1.5">
+                  {(opportunity.skillset || opportunity.skills).split(',').map(s=>s.trim()).filter(Boolean).slice(0,24).map(s => (
+                    <Badge key={s} variant="outline" className="rounded-md capitalize">{s}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Hiring Timezones */}
+          <Card className="border bg-card">
+            <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Hiring Timezones</h3></CardHeader>
+            <CardContent className="p-4 pt-0 text-sm text-muted-foreground">
+              {Array.isArray(opportunity.timezones) && opportunity.timezones.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {opportunity.timezones.map(z => <Badge key={z} variant="outline" className="rounded-md">{z}</Badge>)}
+                </div>
+              ) : (
+                <div>—</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Job Categories */}
+          <Card className="border bg-card">
+            <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Job Categories</h3></CardHeader>
+            <CardContent className="p-4 pt-0 text-sm text-muted-foreground">
+              {Array.isArray(opportunity.categories) && opportunity.categories.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {opportunity.categories.map(c => <Badge key={c} variant="outline" className="rounded-md capitalize">{c}</Badge>)}
+                </div>
+              ) : (
+                <div>—</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Salary */}
+          <Card className="border bg-card">
+            <CardHeader className="pb-2"><h3 className="text-sm font-semibold">Salary</h3></CardHeader>
+            <CardContent className="p-4 pt-0 text-sm">
+              <div className="font-medium">{opportunity.salary || '—'}</div>
+            </CardContent>
+          </Card>
+
           {role === 'employer' || role === 'admin' ? (
-            <div className="mt-8">
+            <div className="mt-2">
               <h3 className="text-sm font-semibold mb-3">Opportunity Insights</h3>
               {insightsLoading && (
                 <div className="space-y-4">
@@ -208,14 +367,12 @@ export default function ListingDetailsPage() {
               {insightsError && <div className="text-sm text-destructive">{insightsError}</div>}
               {insights && !insightsLoading && (
                 <div className="space-y-10">
-                  {/* KPI cards */}
                   <div className="grid gap-3 md:grid-cols-4">
                     <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Applicants</div><div className="text-2xl font-semibold mt-1">{insights.applicantsTotal}</div></div>
-                    <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Detail Views</div><div className="text-2xl font-semibold mt-1">{insights.detailViews}</div></div>
-                    <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Site Clicks</div><div className="text-2xl font-semibold mt-1">{insights.companySiteViews}</div></div>
+                    <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Detail Views</div><div className="text-2xl font-semibold mt-1">{kpis.detail || insights.detailViews}</div></div>
+                    <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Site Clicks</div><div className="text-2xl font-semibold mt-1">{kpis.site || insights.companySiteViews}</div></div>
                     <div className="p-3 border rounded bg-card"><div className="text-[11px] uppercase tracking-wide text-muted-foreground">Conversion</div><div className="text-2xl font-semibold mt-1">{insights.detailViews ? Math.round((insights.applicantsTotal/Math.max(1,insights.detailViews))*100) : 0}%</div></div>
                   </div>
-                  {/* Distribution charts */}
                   <div className="grid gap-8 lg:grid-cols-2">
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium">Regional Distribution</h4>
@@ -226,125 +383,13 @@ export default function ListingDetailsPage() {
                       <BarList data={insights.skills} colorVar="--accent" />
                     </div>
                   </div>
-                  {/* Applicants table */}
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium">Applicants ({insights.applicantsTotal})</h4>
-                    {(!insights.applicants || insights.applicants.length === 0) && <div className="text-xs text-muted-foreground">No applicants yet.</div>}
-                    {insights.applicants && insights.applicants.length > 0 && (
-                      <div className="border rounded overflow-hidden">
-                        <div className="grid grid-cols-6 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground px-3 py-2">
-                          <div>Name</div><div>Email</div><div>Location</div><div className="col-span-2">Skills</div><div>Match</div>
-                        </div>
-                        <div className="max-h-80 overflow-y-auto divide-y">
-                          {insights.applicants.map(a => (
-                            <button type="button" onClick={()=>setViewApplicationId(a.applicationId)} key={a.id} className="text-left grid grid-cols-6 px-3 py-2 text-xs items-start gap-2 bg-card/60 hover:bg-muted/50 transition">
-                              <div className="font-medium truncate" title={a.name}>{a.name}</div>
-                              <div className="truncate" title={a.email}>{a.email}</div>
-                              <div className="truncate" title={a.location}>{a.location}</div>
-                              <div className="col-span-2 flex flex-wrap gap-1">
-                                {a.skills.slice(0,8).map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground">{s}</span>)}
-                                {a.skills.length > 8 && <span className="text-[10px] text-muted-foreground">+{a.skills.length-8} more</span>}
-                              </div>
-                              <div className="text-right font-medium"><span className="inline-block min-w-[36px] text-right">{a.matchPercent}%</span></div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold">Applicants ({applicants.length})</h3>
-              {applicants.length === 0 && <div className="text-sm text-muted-foreground mt-2">No applicants yet.</div>}
-              {applicants.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {applicants.map(a => (
-                    <Card key={a._id} className="border bg-card">
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="text-sm font-medium">{a.applicant?.email || a.applicant?._id}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{a.coverLetter}</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
+          ) : null}
+        </div>
+      </div>
 
-        <CardFooter>
-          <div className="flex items-center justify-between w-full">
-            <div>
-              {token && role === 'student' && (
-                <div>
-                  {!hasApplied && (
-                  <Button
-                    onClick={async () => {
-                      setError(null)
-                      setApplying(true)
-                        try {
-                        const localToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-                        if (!localToken) {
-                          window.location.href = '/login'
-                          return
-                        }
-                        const headers = { Authorization: `Bearer ${localToken}` }
-                        const res = await axios.post('/api/applications', { opportunityId: id }, { headers })
-                        toast.push({ title: 'Application submitted', description: 'Your application was received.' })
-                        setHasApplied(true)
-                        // Prefer count from server response (safe for students)
-                        let updatedCount = res.data?.applicationsCount
-                        // Only owners/admins can see applicants; skip for students
-                        try {
-                          const localRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-                          if (localRole === 'employer' || localRole === 'admin') {
-                            const appsRes = await axios.get(`/api/opportunities/${id}/applicants`, { headers })
-                            setApplicants(appsRes.data.applicants || [])
-                            if (updatedCount == null) {
-                              updatedCount = appsRes.data?.applicants?.length || 0
-                            }
-                          }
-                        } catch (appsErr) {
-                          // Ignore 401/403 here; students aren't allowed to read applicants
-                          if (!(appsErr?.response?.status === 401 || appsErr?.response?.status === 403)) {
-                            // For other errors, show a soft toast but don't mark apply as failed
-                            toast.push({ title: 'Applicants refresh failed', description: appsErr.message, variant: 'destructive' })
-                          }
-                        }
-                        // let other components know the new count
-                        if (typeof updatedCount !== 'number') {
-                          updatedCount = applicants?.length || 0
-                        }
-                        try { window.dispatchEvent(new CustomEvent('applicationsCountUpdated', { detail: { opportunityId: id, applicationsCount: updatedCount } })) } catch (e) {}
-                      } catch (err) {
-                        const msg = err.response?.data?.message || err.message
-                        toast.push({ title: 'Apply failed', description: msg, variant: 'destructive' })
-                      } finally {
-                        setApplying(false)
-                      }
-                    }}
-                    disabled={applying || hasApplied}
-                  >
-                    {applying ? 'Applying…' : 'Apply Now'}
-                  </Button>)}
-                  {hasApplied && (
-                    <Badge variant="outline" className="px-3 py-1 text-xs">Applied</Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Back to dashboard link removed as requested */}
-          </div>
-        </CardFooter>
-      </Card>
       {viewApplicationId && (
         <ApplicantProfileModal applicationId={viewApplicationId} onClose={()=>setViewApplicationId(null)} />
       )}

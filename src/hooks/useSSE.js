@@ -1,5 +1,5 @@
 // Lightweight SSE hook with auto-reconnect and typed event handlers
-export default function useSSE({ onMessageCreated, onConversationCreated, onAck }) {
+export default function createSSEClient({ onMessageCreated, onConversationCreated, onAck }) {
   const urlBase = '/api/events/stream'
 
   let es = null

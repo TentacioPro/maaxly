@@ -70,73 +70,74 @@ export default function OpportunitiesListPage() {
 
   return (
     <div className="w-full md:w-[80%] mx-auto px-3 py-6">
-      <h2 className="text-2xl font-semibold mb-4">Opportunities</h2>
+      <h2 className="text-2xl font-semibold mb-3">Opportunities</h2>
 
       <div className="mb-4">
         <Input
-          placeholder="Search by title or description"
+          placeholder="Search title or description"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full"
+          className="w-full h-10"
         />
       </div>
 
-      {loading && <div>Loading opportunities...</div>}
-  {/* errors shown via toast */}
+      {loading && <div className="text-sm text-muted-foreground">Loading opportunities…</div>}
 
       {!loading && !error && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {displayed.length === 0 && <div className="text-sm text-muted-foreground">No opportunities found.</div>}
           {displayed.map(o => (
-            <Card key={o._id || o.id} className="border bg-card text-card-foreground">
-              <CardContent className="p-4">
-                <Link
-                  to={`/dashboard/listing/${o._id || o.id}`}
-                  className="no-underline text-inherit"
-                  onClick={() => {
-                    try {
-                      sessionStorage.setItem('opps:lastFromList', '1')
-                      sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0))
-                    } catch (e) {}
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-semibold leading-6 truncate max-w-[22ch]" title={o.title}>{o.title}</h3>
-                        <Badge variant="muted" className="capitalize">{o.type}</Badge>
+            <Card key={o._id || o.id} className="border bg-card text-card-foreground hover:bg-muted/20 transition-colors">
+              <CardContent className="p-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[15px] font-semibold leading-6 truncate max-w-[28ch]" title={o.title}>{o.title}</h3>
+                      <Badge variant="muted" className="capitalize">{o.type}</Badge>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{new Date(o.createdAt).toLocaleDateString()}</div>
+                    <p className="mt-2 text-[13px] text-muted-foreground/90 line-clamp-2">{o.description || '—'}</p>
+
+                    {o.skillset && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(o.skillset || '').split(',').map(s => s.trim()).filter(Boolean).slice(0,5).map((s, idx) => (
+                          <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{s}</span>
+                        ))}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">{new Date(o.createdAt).toLocaleDateString()}</div>
-                      <p className="mt-2 text-sm text-muted-foreground/90 line-clamp-2">{o.description || '—'}</p>
+                    )}
 
-                      {o.requirements && (
-                        <div className="mt-2 text-sm text-muted-foreground line-clamp-2">Reqs: {o.requirements}</div>
+                    <div className="mt-2 text-[12px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                      {o.location && <div>{o.location}</div>}
+                      {o.applicationDeadline && <div>Deadline: {new Date(o.applicationDeadline).toLocaleDateString()}</div>}
+                      {o.contactEmail && <div className="truncate max-w-[22ch]" title={o.contactEmail}>{o.contactEmail}</div>}
+                    </div>
+
+                    <div className="mt-2 text-[12px]">
+                      {o.owner?.companyName ? (
+                        <a href={`/company/${o.owner._id}`} className="font-medium text-primary no-underline">{o.owner.companyName}</a>
+                      ) : (
+                        <a href={`/company/${o.owner || o.ownerId || 'unknown'}`} className="font-medium text-primary no-underline">Company</a>
                       )}
-
-                      {o.skillset && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {(o.skillset || '').split(',').map(s => s.trim()).filter(Boolean).slice(0,5).map((s, idx) => (
-                            <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{s}</span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="mt-3 text-sm">
-                        <div className="text-xs text-muted-foreground">{o.location || ''}</div>
-                        {o.applicationDeadline && <div className="text-xs text-muted-foreground">Deadline: {new Date(o.applicationDeadline).toLocaleDateString()}</div>}
-                        {o.contactEmail && <div className="text-xs text-muted-foreground">Contact: {o.contactEmail}</div>}
-                        <div className="mt-2">
-                        {o.owner?.companyName ? (
-                          <a href={`/company/${o.owner._id}`} className="text-sm font-medium text-primary no-underline">{o.owner.companyName}</a>
-                        ) : (
-                          <a href={`/company/${o.owner || o.ownerId || 'unknown'}`} className="text-sm font-medium text-primary no-underline">Company</a>
-                        )}
-                        <div className="text-xs text-muted-foreground">{o.owner?.companyWebsite || ''}</div>
-                        </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {o.owner?.companyWebsite || ''}
                       </div>
                     </div>
                   </div>
-                </Link>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    <Link
+                      to={`/dashboard/listing/${o._id || o.id}`}
+                      className="text-[13px] underline underline-offset-4"
+                      onClick={() => {
+                        try {
+                          sessionStorage.setItem('opps:lastFromList', '1')
+                          sessionStorage.setItem('opps:scrollY', String(window.scrollY || 0))
+                        } catch (e) {}
+                      }}
+                    >
+                      View details
+                    </Link>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}

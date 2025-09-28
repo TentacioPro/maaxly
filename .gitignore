@@ -30,3 +30,7 @@ dist-ssr
 /golden-repo
 /tweakcn-components
 
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

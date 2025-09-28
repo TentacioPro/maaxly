@@ -18,14 +18,19 @@ import messagesRouter from './routes/messages.js'
 import usersSearchRouter from './routes/search.js'
 import eventsRouter from './routes/events.js'
 import profilesRouter from './routes/profiles.js'
+import publicProfileRouter from './routes/profileRoutes.js'
 import { startConsumer } from './kafka/consumer.js'
 import redisClient from './redis/client.js'
 import { publishMessage } from './kafka/producer.js'
+import multer from 'multer'
+import { GridFSBucket } from 'mongodb'
 
 const app = express()
 const port = process.env.PORT || 4000
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
 const dbName = process.env.MONGODB_DB || 'mvp-db'
+// Shared multer instance for multipart uploads (resume, attachments)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }) // 25MB
 
 app.use(express.json())
 // Enable CORS for the frontend during development
@@ -117,6 +122,54 @@ function authMiddleware(req, res, next) {
   }
 }
 
+async function attachCompanyProfiles(docs) {
+  if (!docs) return docs
+  const items = Array.isArray(docs) ? docs : [docs]
+  if (!items.length) return docs
+
+  const ownerIds = Array.from(new Set(items
+    .map((item) => {
+      if (!item || !item.owner) return null
+      if (typeof item.owner === 'object' && item.owner._id) return String(item.owner._id)
+      return String(item.owner)
+    })
+    .filter(Boolean)))
+
+  if (!ownerIds.length) return docs
+
+  const profiles = await EmployerProfile.find({ userId: { $in: ownerIds } })
+    .select('_id userId companyName companyWebsite fullName contactEmail contactPhone location industry')
+    .lean()
+
+  const byOwner = new Map(profiles.map((profile) => [String(profile.userId), profile]))
+
+  const enhanced = items.map((item) => {
+    if (!item) return item
+    const key = typeof item.owner === 'object' && item.owner._id ? String(item.owner._id) : String(item.owner || '')
+    const profile = byOwner.get(key)
+    if (!profile) {
+      return { ...item, companyProfile: null }
+    }
+    return {
+      ...item,
+      companyProfile: {
+        _id: profile._id,
+        userId: profile.userId,
+        companyName: profile.companyName || profile.fullName || null,
+        companyWebsite: profile.companyWebsite || null,
+        contactEmail: profile.contactEmail || null,
+        contactPhone: profile.contactPhone || null,
+        location: profile.location || null,
+        industry: profile.industry || null
+      },
+      company: profile.companyName || item.company || null,
+      companyName: profile.companyName || item.companyName || item.company || null
+    }
+  })
+
+  return Array.isArray(docs) ? enhanced : enhanced[0]
+}
+
 // adminRequired middleware: ensures user is authenticated and isAdmin === true
 function adminRequired(req, res, next) {
   // reuse authMiddleware to validate token and set req.userId
@@ -137,23 +190,73 @@ function adminRequired(req, res, next) {
 // Legacy profile endpoint removed; use /api/profile/student or /api/profile/employer
 
 // Create or update student profile (protected)
+function slugifyName(name) {
+  return (name || '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+async function generateUniqueUsername(base) {
+  const baseSlug = slugifyName(base) || 'user'
+  let candidate = baseSlug
+  let n = 1
+  // Probe for existence; increment suffix until free
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // Using StudentProfile model imported above
+    const exists = await StudentProfile.findOne({ username: candidate }).select('_id').lean()
+    if (!exists) return candidate
+    n += 1
+    candidate = `${baseSlug}-${n}`
+  }
+}
+
 async function handleCreateStudentProfile(req, res) {
   try {
     const targetUserId = req.params.userId || req.userId
     if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
     if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
 
-    const { fullName, college, graduationYear, major, skills } = req.body
+    const { fullName, college, graduationYear, major } = req.body
+    let { skills } = req.body
+
+    // Normalize skills to ObjectId refs from names if provided as strings
+    if (Array.isArray(skills)) {
+      const byName = await Skill.find({ name: { $in: skills.filter(s => typeof s === 'string') } }).select('_id name').lean()
+      const idSet = new Set()
+      for (const s of skills) {
+        if (typeof s === 'string') {
+          const found = byName.find(x => x.name === s)
+          if (found) idSet.add(String(found._id))
+        } else if (s && s._id) {
+          idSet.add(String(s._id))
+        } else if (typeof s === 'object' && s.id) {
+          idSet.add(String(s.id))
+        } else if (typeof s === 'string' && s.match(/^[a-f0-9]{24}$/)) {
+          idSet.add(s)
+        }
+      }
+      skills = Array.from(idSet)
+    } else {
+      skills = []
+    }
 
     const update = {
       fullName,
       college,
       graduationYear: graduationYear ? Number(graduationYear) : undefined,
       major,
-      skills: Array.isArray(skills) ? skills : []
+      skills
     }
 
-    const profileDoc = new StudentProfile({ userId: targetUserId, ...update })
+    // Generate a unique username from fullName
+    const username = await generateUniqueUsername(fullName || 'student')
+
+  const profileDoc = new StudentProfile({ userId: targetUserId, username, ...update })
     await profileDoc.save()
 
     await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
@@ -205,6 +308,9 @@ app.use('/api/users', authMiddleware, usersSearchRouter)
 // Profiles public/private visibility endpoints
 app.use('/api/profiles', profilesRouter)
 
+// Public profile endpoints (no auth)
+app.use('/api/profile', publicProfileRouter)
+
 // Events (SSE) router for live updates (optional auth)
 app.use('/api/events', eventsRouter)
 
@@ -238,7 +344,7 @@ app.get('/api/profile/me', authMiddleware, async (req, res) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' })
 
   // prefer StudentProfile then EmployerProfile, then AdminProfile
-    let profile = await StudentProfile.findOne({ userId }).lean()
+    let profile = await StudentProfile.findOne({ userId }).populate('skills','name').lean()
     if (profile) return res.json({ success: true, profile, type: 'student' })
 
     profile = await EmployerProfile.findOne({ userId }).lean()
@@ -269,17 +375,48 @@ app.patch('/api/profile', authMiddleware, async (req, res) => {
     }
     if (!profile) return res.status(404).json({ message: 'Profile not found' })
 
-    const allowed = ['bio', 'skills', 'companyWebsite', 'companyName', 'fullName', 'major', 'college', 'graduationYear']
+    // Allowed fields depend on profile type
+  const allowedStudent = ['bio','skills','fullName','major','college','graduationYear','username','profilePictureUrl','location','headline','links','preferences','visibility','experience','education']
+    const allowedEmployer = ['bio','companyWebsite','companyName','fullName']
+    const allowed = model === StudentProfile ? allowedStudent : allowedEmployer
     const update = {}
     for (const k of allowed) if (k in req.body) update[k] = req.body[k]
-    if (update.skills && !Array.isArray(update.skills)) update.skills = []
+    if (model === StudentProfile && update.skills) {
+      if (!Array.isArray(update.skills)) update.skills = []
+      else {
+        const input = update.skills
+        const byName = await Skill.find({ name: { $in: input.filter(s => typeof s === 'string') } }).select('_id name').lean()
+        const idSet = new Set()
+        for (const s of input) {
+          if (typeof s === 'string') {
+            const found = byName.find(x => x.name === s)
+            if (found) idSet.add(String(found._id))
+          } else if (s && s._id) {
+            idSet.add(String(s._id))
+          } else if (typeof s === 'object' && s.id) {
+            idSet.add(String(s.id))
+          } else if (typeof s === 'string' && s.match(/^[a-f0-9]{24}$/)) {
+            idSet.add(s)
+          }
+        }
+        update.skills = Array.from(idSet)
+      }
+    }
     if ('graduationYear' in update) {
       const gy = Number(update.graduationYear)
       if (!Number.isFinite(gy)) delete update.graduationYear
       else update.graduationYear = gy
     }
 
-    const next = await model.findOneAndUpdate({ userId }, { $set: update }, { new: true })
+    let next
+    try {
+      next = await model.findOneAndUpdate({ userId }, { $set: update }, { new: true, runValidators: true })
+    } catch (e) {
+      if (e && e.code === 11000 && String(e.message || '').includes('username')) {
+        return res.status(409).json({ success: false, message: 'Username already taken' })
+      }
+      throw e
+    }
     // Emit and publish profile update so other systems and SSE clients can react
     try { eventBus && eventBus.emit && eventBus.emit('profile:updated', { userId, profile: next.toObject ? next.toObject() : next }) } catch(_){}
     try { if (redisClient && typeof redisClient.publish === 'function') await redisClient.publish('profiles:updates', JSON.stringify({ userId, profile: next.toObject ? next.toObject() : next })) } catch (rerr) { console.warn('Failed to publish profile update to Redis', rerr && rerr.message) }
@@ -291,35 +428,111 @@ app.patch('/api/profile', authMiddleware, async (req, res) => {
 })
 
 // Resume & video metadata storage (no file storage yet) - simple stub
-import fs from 'fs'
-import path from 'path'
-
-const uploadsDir = path.join(process.cwd(), 'server', 'uploads')
-try { if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true }) } catch {}
-
-// In-memory map for metadata until real storage added
-const mediaMeta = { resumes: new Map(), videos: new Map() }
-
-app.post('/api/profile/resume', authMiddleware, async (req, res) => {
+// ---- Resume (GridFS) real upload/download ----
+app.post('/api/profile/resume', authMiddleware, upload.single('file'), async (req, res) => {
   try {
-    const { name, size } = req.body || {}
-    if (!name) return res.status(400).json({ message: 'name required' })
-    mediaMeta.resumes.set(req.userId, { name, size, uploadedAt: new Date() })
-    res.status(201).json({ success: true, resume: mediaMeta.resumes.get(req.userId) })
+    if (!req.file) return res.status(400).json({ message: 'file required' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'resumes' })
+    const { buffer, originalname, mimetype } = req.file
+    const stream = bucket.openUploadStream(originalname, { contentType: mimetype })
+    stream.end(buffer)
+    stream.on('error', (e) => res.status(500).json({ message: e.message }))
+    stream.on('finish', async () => {
+      const fileId = stream.id
+      const update = {
+        resumeFileId: fileId,
+        resumeFilename: originalname,
+        resumeContentType: mimetype,
+        resumeUploadedAt: new Date()
+      }
+      await StudentProfile.findOneAndUpdate(
+        { userId: req.userId },
+        { $set: update },
+        { new: true, upsert: true }
+      )
+      res.status(201).json({ success: true, resume: { name: originalname, uploadedAt: update.resumeUploadedAt, fileId } })
+    })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
 app.post('/api/profile/video', authMiddleware, async (req, res) => {
   try {
+    // Keep as metadata-only stub for now
     const { name, size, durationSec } = req.body || {}
-    if (!name) return res.status(400).json({ message: 'name required' })
-    mediaMeta.videos.set(req.userId, { name, size, durationSec, uploadedAt: new Date() })
-    res.status(201).json({ success: true, video: mediaMeta.videos.get(req.userId) })
+    res.status(201).json({ success: true, video: { name, size, durationSec, uploadedAt: new Date() } })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
 app.get('/api/profile/media', authMiddleware, async (req, res) => {
-  res.json({ success: true, resume: mediaMeta.resumes.get(req.userId) || null, video: mediaMeta.videos.get(req.userId) || null })
+  try {
+    const prof = await StudentProfile.findOne({ userId: req.userId }).select('resumeFilename resumeUploadedAt resumeFileId resumeContentType avatarFileId avatarFilename avatarContentType avatarUploadedAt').lean()
+    const resume = prof && prof.resumeFileId ? {
+      name: prof.resumeFilename,
+      uploadedAt: prof.resumeUploadedAt,
+      fileId: prof.resumeFileId,
+      contentType: prof.resumeContentType
+    } : null
+    const avatar = prof && prof.avatarFileId ? {
+      name: prof.avatarFilename,
+      uploadedAt: prof.avatarUploadedAt,
+      fileId: prof.avatarFileId,
+      contentType: prof.avatarContentType
+    } : null
+    res.json({ success: true, resume, avatar, video: null })
+  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
+})
+
+app.get('/api/profile/resume/download', authMiddleware, async (req, res) => {
+  try {
+    const prof = await StudentProfile.findOne({ userId: req.userId }).select('resumeFileId resumeFilename resumeContentType').lean()
+    if (!prof || !prof.resumeFileId) return res.status(404).json({ message: 'No resume' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'resumes' })
+    const stream = bucket.openDownloadStream(new mongoose.Types.ObjectId(String(prof.resumeFileId)))
+    res.setHeader('Content-Type', prof.resumeContentType || 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${prof.resumeFilename || 'resume.pdf'}"`)
+    stream.on('error', () => res.status(404).end())
+    stream.pipe(res)
+  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
+})
+
+// Avatar (Profile photo) upload/download via GridFS
+app.post('/api/profile/avatar', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'file required' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'avatars' })
+    const { buffer, originalname, mimetype } = req.file
+    const stream = bucket.openUploadStream(originalname, { contentType: mimetype })
+    stream.end(buffer)
+    stream.on('error', (e) => res.status(500).json({ message: e.message }))
+    stream.on('finish', async () => {
+      const fileId = stream.id
+      const update = {
+        avatarFileId: fileId,
+        avatarFilename: originalname,
+        avatarContentType: mimetype,
+        avatarUploadedAt: new Date()
+      }
+      await StudentProfile.findOneAndUpdate(
+        { userId: req.userId },
+        { $set: update },
+        { new: true, upsert: true }
+      )
+      res.status(201).json({ success: true, avatar: { name: originalname, uploadedAt: update.avatarUploadedAt, fileId } })
+    })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+app.get('/api/profile/avatar/download', authMiddleware, async (req, res) => {
+  try {
+    const prof = await StudentProfile.findOne({ userId: req.userId }).select('avatarFileId avatarFilename avatarContentType').lean()
+    if (!prof || !prof.avatarFileId) return res.status(404).json({ message: 'No avatar' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'avatars' })
+    const stream = bucket.openDownloadStream(new mongoose.Types.ObjectId(String(prof.avatarFileId)))
+    res.setHeader('Content-Type', prof.avatarContentType || 'image/png')
+    res.setHeader('Content-Disposition', `inline; filename="${prof.avatarFilename || 'avatar.png'}"`)
+    stream.on('error', () => res.status(404).end())
+    stream.pipe(res)
+  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
 })
 
 // Student progress (mock aggregates) - would join Applications etc.
@@ -327,10 +540,33 @@ app.get('/api/analytics/student/progress', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('role').lean()
     if (!user || user.role !== 'student') return res.status(403).json({ message: 'Forbidden' })
-    // For now mock counts from Applications collection
-    const totalApps = await Application.countDocuments({ applicant: req.userId })
-    // interview/offer counts not tracked; return zero placeholders
-    res.json({ success: true, progress: { applications: totalApps, interviews: 0, offers: 0 } })
+    const applications = await Application.find({ applicant: req.userId })
+      .select('status createdAt')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    const statusCounts = { applied: 0, screening: 0, interview: 0, offer: 0, rejected: 0 }
+    let lastActivityAt = null
+    for (const appDoc of applications) {
+      const status = (appDoc.status || 'applied').toLowerCase()
+      if (statusCounts[status] !== undefined) statusCounts[status] += 1
+      else statusCounts.applied += 1
+      const created = appDoc.createdAt ? new Date(appDoc.createdAt).getTime() : null
+      if (created && (!lastActivityAt || created > lastActivityAt)) lastActivityAt = created
+    }
+
+    const totalApplications = applications.length
+    res.json({
+      success: true,
+      progress: {
+        applications: totalApplications,
+        interviews: statusCounts.interview + statusCounts.screening,
+        offers: statusCounts.offer,
+        rejected: statusCounts.rejected,
+        statusBreakdown: statusCounts,
+        lastActivityAt
+      }
+    })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
@@ -339,13 +575,247 @@ app.get('/api/analytics/employer/overview', authMiddleware, async (req, res) => 
   try {
     const user = await User.findById(req.userId).select('role').lean()
     if (!user || (user.role !== 'employer' && user.role !== 'admin')) return res.status(403).json({ message: 'Forbidden' })
-    const listings = await Opportunity.find({ owner: req.userId }).select('applicationsCount type createdAt').lean()
+    const listings = await Opportunity.find({ owner: req.userId })
+      .select('title type applicationsCount detailViews companySiteViews skills skillset categories createdAt location')
+      .lean()
+    const listingMap = new Map(listings.map((l) => [String(l._id), l]))
+
     const totalListings = listings.length
-    const totalApplicants = listings.reduce((s, l) => s + (l.applicationsCount || 0), 0)
+    const opportunityIds = listings.map((l) => l._id)
+    const applications = opportunityIds.length
+      ? await Application.find({ opportunity: { $in: opportunityIds } })
+        .select('opportunity status createdAt')
+        .populate('applicant', 'email fullName')
+        .lean()
+      : []
+
+    const byType = listings.reduce((acc, l) => {
+      const t = (l.type || 'other').toLowerCase()
+      acc[t] = (acc[t] || 0) + 1
+      return acc
+    }, {})
+
+    const detailViewsTotal = listings.reduce((sum, l) => sum + (l.detailViews || 0), 0)
+    const siteViewsTotal = listings.reduce((sum, l) => sum + (l.companySiteViews || 0), 0)
+
+    const appsByOpp = new Map()
+    for (const appDoc of applications) {
+      const key = String(appDoc.opportunity)
+      const meta = appsByOpp.get(key) || { count: 0, lastApplicationAt: null, status: { applied: 0, screening: 0, interview: 0, offer: 0, rejected: 0 } }
+      meta.count += 1
+      const status = (appDoc.status || 'applied').toLowerCase()
+      if (meta.status[status] !== undefined) meta.status[status] += 1
+      else meta.status.applied += 1
+      const createdTs = appDoc.createdAt ? new Date(appDoc.createdAt).getTime() : null
+      if (createdTs && (!meta.lastApplicationAt || createdTs > meta.lastApplicationAt)) meta.lastApplicationAt = createdTs
+      appsByOpp.set(key, meta)
+    }
+
+    const totalApplicants = Array.from(appsByOpp.values()).reduce((sum, meta) => sum + meta.count, 0)
     const avgApplicantsPerListing = totalListings ? (totalApplicants / totalListings) : 0
-    const byType = listings.reduce((acc, l) => { const t = (l.type||'other'); acc[t] = (acc[t]||0)+1; return acc }, {})
-    res.json({ success: true, overview: { totalListings, totalApplicants, avgApplicantsPerListing, byType } })
+
+    const topListings = listings
+      .map((listing) => {
+        const key = String(listing._id)
+        const meta = appsByOpp.get(key)
+        const parsedSkills = []
+        const rawSkills = [listing.skills, listing.skillset]
+          .filter(Boolean)
+          .join(',')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+        parsedSkills.push(...rawSkills)
+        return {
+          id: key,
+          title: listing.title,
+          type: listing.type,
+          applications: meta ? meta.count : (listing.applicationsCount || 0),
+          detailViews: listing.detailViews || 0,
+          siteViews: listing.companySiteViews || 0,
+          lastApplicationAt: meta?.lastApplicationAt || null,
+          statusBreakdown: meta?.status || null,
+          skills: parsedSkills
+        }
+      })
+      .sort((a, b) => b.applications - a.applications)
+      .slice(0, 5)
+
+    const skillCounts = new Map()
+    for (const listing of listings) {
+      const raw = [listing.skills, listing.skillset]
+        .filter(Boolean)
+        .join(',')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      for (const skill of raw) {
+        const normalized = skill.replace(/\s+/g, ' ').trim()
+        if (!normalized) continue
+        const current = skillCounts.get(normalized) || 0
+        skillCounts.set(normalized, current + 1)
+      }
+    }
+    const topSkills = Array.from(skillCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count }))
+
+    const now = Date.now()
+    const dayAgo = now - (24 * 60 * 60 * 1000)
+    const weekAgo = now - (7 * 24 * 60 * 60 * 1000)
+    let newApplicants24h = 0
+    let newApplicants7d = 0
+    for (const appDoc of applications) {
+      const created = appDoc.createdAt ? new Date(appDoc.createdAt).getTime() : null
+      if (!created) continue
+      if (created >= dayAgo) newApplicants24h += 1
+      if (created >= weekAgo) newApplicants7d += 1
+    }
+
+    const recentApplicants = applications
+      .slice()
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 6)
+      .map((appDoc) => {
+        const listing = listingMap.get(String(appDoc.opportunity))
+        return {
+          id: String(appDoc._id),
+          status: appDoc.status || 'applied',
+          createdAt: appDoc.createdAt || null,
+          opportunityId: appDoc.opportunity ? String(appDoc.opportunity) : null,
+          opportunityTitle: listing ? listing.title : 'Opportunity',
+          applicantEmail: appDoc.applicant?.email || null,
+          applicantName: appDoc.applicant?.fullName || null
+        }
+      })
+
+    const engagementNotes = []
+    if (topListings[0]) {
+      engagementNotes.push(`${topListings[0].title} is attracting the most applicants (${topListings[0].applications}).`)
+    }
+    if (detailViewsTotal) {
+      engagementNotes.push(`Your listings have been viewed ${detailViewsTotal} times.`)
+    }
+    if (avgApplicantsPerListing) {
+      engagementNotes.push(`Average applicants per listing sits at ${avgApplicantsPerListing.toFixed(1)}.`)
+    }
+    if (newApplicants24h) {
+      engagementNotes.push(`${newApplicants24h} new applicants arrived in the last 24 hours.`)
+    }
+    if (!engagementNotes.length) {
+      engagementNotes.push('Publish and share opportunities to start receiving applications.')
+    }
+
+    const lastApplicant = recentApplicants[0] || null
+
+    res.json({
+      success: true,
+      overview: {
+        totalListings,
+        totalApplicants,
+        avgApplicantsPerListing,
+        byType,
+        funnel: {
+          views: detailViewsTotal,
+          siteVisits: siteViewsTotal,
+          applies: totalApplicants,
+          viewToApplyRate: detailViewsTotal ? totalApplicants / detailViewsTotal : null,
+          siteToApplyRate: siteViewsTotal ? totalApplicants / (siteViewsTotal || 1) : null,
+          viewToSiteRate: detailViewsTotal ? siteViewsTotal / detailViewsTotal : null
+        },
+        topListings,
+        topSkills,
+        engagementNotes,
+        recentApplicants,
+        activity: {
+          newApplicants24h,
+          newApplicants7d,
+          lastApplicationAt: lastApplicant?.createdAt || null,
+          lastApplicationOpportunity: lastApplicant?.opportunityTitle || null,
+          totalViews: detailViewsTotal,
+          totalSiteViews: siteViewsTotal
+        }
+      }
+    })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+app.get('/api/analytics/employer/applicants', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('role').lean()
+    if (!user || (user.role !== 'employer' && user.role !== 'admin')) {
+      return res.status(403).json({ message: 'Forbidden' })
+    }
+
+    const listings = await Opportunity.find({ owner: req.userId })
+      .select('_id title type detailViews companySiteViews createdAt')
+      .lean()
+
+    if (!listings.length) {
+      return res.json({ success: true, applicants: [] })
+    }
+
+    const listingMap = new Map(listings.map((listing) => [String(listing._id), listing]))
+    const opportunityIds = listings.map((listing) => listing._id)
+
+    const applications = await Application.find({ opportunity: { $in: opportunityIds } })
+      .populate('applicant', 'fullName email')
+      .populate('opportunity', 'title type')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    const applicantIds = Array.from(new Set(applications
+      .map((appDoc) => {
+        const id = appDoc.applicant && (appDoc.applicant._id || appDoc.applicant)
+        return id ? String(id) : null
+      })
+      .filter(Boolean)))
+
+    const profiles = applicantIds.length
+      ? await StudentProfile.find({ userId: { $in: applicantIds } })
+        .select('userId username publicId fullName location headline links visibility')
+        .populate('skills', 'name')
+        .lean()
+      : []
+
+    const profileMap = new Map(profiles.map((profile) => [String(profile.userId), profile]))
+
+    const applicants = applications.map((appDoc) => {
+      const listingId = appDoc.opportunity?._id || appDoc.opportunity
+      const listing = listingId ? listingMap.get(String(listingId)) : null
+      const applicantId = appDoc.applicant && (appDoc.applicant._id || appDoc.applicant)
+      const profile = applicantId ? profileMap.get(String(applicantId)) : null
+      const skills = profile?.skills ? profile.skills.map((skill) => skill.name).filter(Boolean) : []
+
+      return {
+        id: String(appDoc._id),
+        status: appDoc.status || 'applied',
+        createdAt: appDoc.createdAt || null,
+        opportunityId: listing ? String(listing._id) : (listingId ? String(listingId) : null),
+        opportunityTitle: appDoc.opportunity?.title || listing?.title || 'Opportunity',
+        opportunityType: appDoc.opportunity?.type || listing?.type || null,
+        applicant: {
+          id: applicantId ? String(applicantId) : null,
+          name: appDoc.applicant?.fullName || profile?.fullName || appDoc.applicant?.email || 'Applicant',
+          email: appDoc.applicant?.email || null
+        },
+        applicantProfile: profile ? {
+          username: profile.username || null,
+          publicId: profile.publicId || null,
+          fullName: profile.fullName || null,
+          location: profile.location || null,
+          headline: profile.headline || null,
+          skills,
+          visibility: profile.visibility || null
+        } : null
+      }
+    })
+
+    res.json({ success: true, applicants })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
 
 // Habit forming: tasks + streak endpoints (local ephemeral)
@@ -416,7 +886,8 @@ app.get('/api/opportunities', async (req, res) => {
       : {}
 
     const items = await Opportunity.find(query).sort({ createdAt: -1 }).lean()
-    res.json({ success: true, opportunities: items })
+    const opportunities = await attachCompanyProfiles(items)
+    res.json({ success: true, opportunities })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -427,7 +898,8 @@ app.get('/api/opportunities/my', authMiddleware, async (req, res) => {
   try {
     const userId = req.userId
     const items = await Opportunity.find({ owner: userId }).sort({ createdAt: -1 }).lean()
-    res.json({ success: true, opportunities: items })
+    const opportunities = await attachCompanyProfiles(items)
+    res.json({ success: true, opportunities })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -437,8 +909,9 @@ app.get('/api/opportunities/my', authMiddleware, async (req, res) => {
 app.get('/api/opportunities/my-listings', authMiddleware, async (req, res) => {
   try {
     // Find opportunities where the owner matches the authenticated user's id
-    const myListings = await Opportunity.find({ owner: req.userId }).sort({ createdAt: -1 });
-    return res.json(myListings);
+    const myListings = await Opportunity.find({ owner: req.userId }).sort({ createdAt: -1 }).lean()
+    const opportunities = await attachCompanyProfiles(myListings)
+    return res.json(opportunities)
   } catch (err) {
     console.error('Error fetching my listings:', err);
     return res.status(500).json({ error: 'Server error' });
@@ -473,11 +946,12 @@ app.post('/api/opportunities', authMiddleware, async (req, res) => {
 app.get('/api/opportunities/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const opp = await Opportunity.findById(id).lean()
-    if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+    const oppDoc = await Opportunity.findById(id).lean()
+    if (!oppDoc) return res.status(404).json({ message: 'Opportunity not found' })
     // increment detail view (fire and forget)
     try { await Opportunity.findByIdAndUpdate(id, { $inc: { detailViews: 1 } }) } catch (e) {}
-    res.json({ success: true, opportunity: opp })
+    const opportunity = await attachCompanyProfiles(oppDoc)
+    res.json({ success: true, opportunity })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -488,12 +962,19 @@ app.post('/api/opportunities/:id/track', async (req, res) => {
   try {
     const { id } = req.params
     const { event } = req.body || {}
-    if (!['companySite'].includes(event)) return res.status(400).json({ message: 'Invalid event' })
+    const valid = ['companySite','detail','listClick']
+    if (!valid.includes(event)) return res.status(400).json({ message: 'Invalid event' })
     const update = {}
     if (event === 'companySite') update.$inc = { companySiteViews: 1 }
+    if (event === 'detail') update.$inc = { detailViews: 1 }
     const opp = await Opportunity.findByIdAndUpdate(id, update, { new: true }).lean()
     if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
-    res.json({ success: true, opportunity: { _id: opp._id, companySiteViews: opp.companySiteViews } })
+    try {
+      const ownerId = opp.owner
+      const payload = { type: 'analytics', event, opportunityId: String(opp._id), ownerId: String(ownerId), detailViews: opp.detailViews || 0, companySiteViews: opp.companySiteViews || 0, ts: Date.now() }
+      await redisClient.publish(`analytics:opportunity:${ownerId}`, JSON.stringify(payload))
+    } catch (e) { /* ignore */ }
+    res.json({ success: true, opportunity: { _id: opp._id, companySiteViews: opp.companySiteViews, detailViews: opp.detailViews } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -566,6 +1047,19 @@ app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) =>
     }
 
     const applications = await Application.find({ opportunity: id }).populate('applicant', 'email').lean()
+    // Attach applicant profile identifiers (username, publicId) for linking
+    try {
+      const userIds = Array.from(new Set(applications.map(a => a.applicant && (a.applicant._id ? String(a.applicant._id) : String(a.applicant))).filter(Boolean)))
+      const profiles = await StudentProfile.find({ userId: { $in: userIds } }).select('userId username publicId').lean()
+      const byUser = new Map(profiles.map(p => [String(p.userId), p]))
+      applications.forEach(a => {
+        const uid = a.applicant && (a.applicant._id ? String(a.applicant._id) : String(a.applicant))
+        const p = byUser.get(uid)
+        a.applicantProfile = p ? { username: p.username, publicId: p.publicId } : null
+      })
+    } catch (e) {
+      // non-fatal
+    }
     res.json({ success: true, applicants: applications })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
@@ -576,7 +1070,7 @@ app.get('/api/opportunities/:id/applicants', authMiddleware, async (req, res) =>
 app.get('/api/applications/my', authMiddleware, async (req, res) => {
   try {
     const apps = await Application.find({ applicant: req.userId })
-      .populate('opportunity', 'title type location applicationsCount')
+      .populate('opportunity', 'title type location applicationsCount detailViews companySiteViews skills skillset categories')
       .sort({ createdAt: -1 })
       .lean()
     res.json({ success: true, applications: apps })
@@ -815,6 +1309,67 @@ app.get('/api/admin/subscriptions', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }) }
 })
 
+// -------- Opportunity Attachments (GridFS) --------
+
+function requireOwnerOrAdmin(req, res, next) {
+  authMiddleware(req, res, async () => {
+    try {
+      const { id } = req.params
+      const opp = await Opportunity.findById(id)
+      if (!opp) return res.status(404).json({ message: 'Opportunity not found' })
+      const me = await User.findById(req.userId).select('role')
+      if (!me) return res.status(401).json({ message: 'Unauthorized' })
+      const isOwner = String(opp.owner) === String(req.userId)
+      if (!isOwner && me.role !== 'admin') return res.status(403).json({ message: 'Forbidden' })
+      req.opportunityDoc = opp
+      next()
+    } catch (e) { res.status(500).json({ message: e.message }) }
+  })
+}
+
+app.post('/api/opportunities/:id/attachments', requireOwnerOrAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'file required' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'attachments' })
+    // Use native stream from uploaded buffer
+    const { buffer, originalname, mimetype, size } = req.file
+    const uploadStream = bucket.openUploadStream(originalname, { contentType: mimetype })
+    uploadStream.end(buffer)
+    uploadStream.on('error', (err) => res.status(500).json({ message: err.message }))
+    uploadStream.on('finish', async () => {
+      const fileId = uploadStream.id
+      const meta = { fileId, filename: originalname, length: size, contentType: mimetype, uploadedAt: new Date() }
+      await Opportunity.findByIdAndUpdate(req.opportunityDoc._id, { $push: { attachments: meta } })
+      res.status(201).json({ success: true, attachment: meta })
+    })
+  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
+})
+
+app.get('/api/opportunities/:id/attachments', authMiddleware, async (req, res) => {
+  try {
+    const opp = await Opportunity.findById(req.params.id).select('attachments owner').lean()
+    if (!opp) return res.status(404).json({ message: 'Not found' })
+    // Publicly viewable list (names/meta), download still protected below
+    res.json({ success: true, attachments: opp.attachments || [] })
+  } catch (e) { res.status(500).json({ message: e.message }) }
+})
+
+app.get('/api/opportunities/:id/attachments/:fileId', authMiddleware, async (req, res) => {
+  try {
+    const { id, fileId } = req.params
+    const opp = await Opportunity.findById(id).select('attachments').lean()
+    if (!opp) return res.status(404).json({ message: 'Not found' })
+    const att = (opp.attachments || []).find(a => String(a.fileId) === String(fileId))
+    if (!att) return res.status(404).json({ message: 'File not found' })
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'attachments' })
+    const stream = bucket.openDownloadStream(new mongoose.Types.ObjectId(fileId))
+    res.setHeader('Content-Type', att.contentType || 'application/octet-stream')
+    res.setHeader('Content-Disposition', `inline; filename="${att.filename || 'file'}"`)
+    stream.on('error', () => res.status(404).end())
+    stream.pipe(res)
+  } catch (e) { res.status(500).json({ message: e.message }) }
+})
+
 // POST create application (student applies to an opportunity)
 app.post('/api/applications', authMiddleware, async (req, res) => {
   try {
@@ -910,6 +1465,22 @@ async function startServer() {
     app.listen(port, () => {
       console.log(`Server listening on http://localhost:${port}`)
     })
+    // Backfill publicId for existing student profiles missing it
+    try {
+      const missing = await StudentProfile.find({ $or: [ { publicId: { $exists: false } }, { publicId: null }, { publicId: '' } ] }).select('_id publicId').lean()
+      if (missing && missing.length) {
+        console.log(`[backfill] Assigning publicId for ${missing.length} student profiles`)
+        for (const m of missing) {
+          const ts = Date.now().toString(36)
+          const rnd = Math.random().toString(36).slice(2, 8)
+          const publicId = `${ts}${rnd}`
+          // eslint-disable-next-line no-await-in-loop
+          await StudentProfile.findByIdAndUpdate(m._id, { $set: { publicId } })
+        }
+      }
+    } catch (bfErr) {
+      console.warn('[backfill] publicId assignment failed:', bfErr && bfErr.message)
+    }
     // Start Redis client
     try {
       await redisClient.ping()

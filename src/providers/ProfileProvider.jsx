@@ -13,8 +13,18 @@ export function ProfileProvider({ children }) {
     const cached = cacheRef.current[userId]
     if (!force && cached && cached.expiresAt > now) return cached.profile
     try {
-      const res = await axios.get(`/api/profiles/${userId}`)
-      const profile = res.data && res.data.profile ? res.data.profile : null
+      // Try new student public endpoint first
+      let profile = null
+      try {
+        const res = await axios.get(`/api/profile/id/${encodeURIComponent(userId)}`)
+        profile = res.data && res.data.profile ? res.data.profile : null
+      } catch (e) {
+        // fallback to legacy endpoint if not found
+        try {
+          const res2 = await axios.get(`/api/profiles/${userId}`)
+          profile = res2.data && res2.data.profile ? res2.data.profile : null
+        } catch {}
+      }
       cacheRef.current[userId] = { profile, expiresAt: now + 60 * 1000 }
       return profile
     } catch (e) {

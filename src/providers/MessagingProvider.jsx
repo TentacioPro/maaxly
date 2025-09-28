@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react'
-import useSSE from '@/hooks/useSSE'
+import createSSEClient from '@/hooks/useSSE'
 import axios from 'axios'
 
 // small helper to safely GET JSON with auth header
@@ -23,16 +23,28 @@ export function MessagingProvider({ children }) {
   const [activeConversationId, setActiveConversationId] = useState(null)
   const [messagesByConversation, setMessagesByConversation] = useState({})
   const ackStatusRef = useRef({})
+  // prevent duplicate history fetches and thundering herds
+  const historyInflightRef = useRef({})
+  const historyLastAtRef = useRef({})
 
   // load messages for a conversation (cached)
   async function loadMessages(conversationId, opts = { limit: 50 }) {
     if (!conversationId) return []
     const cid = String(conversationId)
     // return cached if present
-    if (messagesByConversation[cid] && messagesByConversation[cid].length) return messagesByConversation[cid]
+    if (messagesByConversation[cid] && messagesByConversation[cid].length) {
+      // short cooldown to avoid immediate refetch loops
+      const lastAt = historyLastAtRef.current[cid] || 0
+      if (Date.now() - lastAt < 1500) return messagesByConversation[cid]
+    }
+    // reuse in-flight request if the same conversation is already fetching
+    if (historyInflightRef.current[cid]) return historyInflightRef.current[cid]
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      const res = await axios.get(`/api/messages/history?conversationId=${conversationId}&limit=${opts.limit}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const p = axios.get(`/api/messages/history?conversationId=${conversationId}&limit=${opts.limit}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      historyInflightRef.current[cid] = p
+      const res = await p
       const data = res && res.data
       const msgs = (data && data.messages) || []
       // already oldest -> newest per API
@@ -45,14 +57,19 @@ export function MessagingProvider({ children }) {
           const legacyMsgs = (data2 && data2.messages) || []
           const legacyOrdered = Array.isArray(legacyMsgs) ? legacyMsgs.slice().reverse() : []
           setMessagesByConversation(prev => ({ ...prev, [cid]: legacyOrdered }))
+          historyLastAtRef.current[cid] = Date.now()
+          delete historyInflightRef.current[cid]
           return legacyOrdered
         } catch (e2) {
           // ignore fallback error
         }
       }
-  setMessagesByConversation(prev => ({ ...prev, [cid]: ordered }))
+      setMessagesByConversation(prev => ({ ...prev, [cid]: ordered }))
+      historyLastAtRef.current[cid] = Date.now()
+      delete historyInflightRef.current[cid]
       return ordered
     } catch (e) {
+      delete historyInflightRef.current[cid]
       return []
     }
   }
@@ -224,7 +241,7 @@ export function MessagingProvider({ children }) {
   }
 
   // SSE handlers
-  const sse = useMemo(() => useSSE({
+  const sse = useMemo(() => createSSEClient({
     onMessageCreated: (payload) => {
       // payload: { conversationId, message }
       const cid = String(payload.conversationId)

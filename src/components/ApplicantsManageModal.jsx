@@ -90,6 +90,15 @@ export default function ApplicantsManageModal({ opportunityId, onClose }) {
                       </td>
                       <td className="px-4 py-2 align-top">
                         <div className="flex flex-wrap gap-1">
+                          {(a.applicantProfile?.username || a.applicantProfile?.publicId) && (
+                            <a
+                              className="inline-flex items-center px-2 py-1 rounded bg-primary text-primary-foreground text-[10px] hover:opacity-90"
+                              href={a.applicantProfile?.username ? `/u/${encodeURIComponent(a.applicantProfile.username)}` : `/s/${encodeURIComponent(a.applicantProfile.publicId)}`}
+                              target="_blank" rel="noreferrer"
+                            >
+                              View profile
+                            </a>
+                          )}
                           {STATUSES.filter(s => s!==a.status).map(s => (
                             <Button key={s} size="xs" variant="secondary" disabled={!!updating[a._id]} onClick={() => updateStatus(a._id, s)} className="text-[10px] px-2 py-1">
                               {updating[a._id] ? '...' : s}

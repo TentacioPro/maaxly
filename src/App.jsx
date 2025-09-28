@@ -1,8 +1,7 @@
 import './App.css'
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import MainLayout from './components/MainLayout'
 import { ToasterProvider } from './components/ui/toast'
-import { Navigate } from 'react-router-dom'
 import React, { useEffect, useState, Suspense, lazy } from 'react'
 import axios from 'axios'
 
@@ -26,6 +25,15 @@ const PersonalizationPage = lazy(() => import('./pages/PersonalizationPage'))
 const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const EmployerAnalyticsPage = lazy(() => import('./pages/EmployerAnalyticsPage'))
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'))
+const PublicProfileRoute = lazy(() => import('./pages/PublicProfileRoute'))
+
+function MainLayoutShell() {
+  return (
+    <MainLayout>
+      <Outlet />
+    </MainLayout>
+  )
+}
 
 function App() {
   const [role, setRole] = useState(null) // 'student' | 'employer' | null
@@ -83,6 +91,8 @@ function App() {
                 <Route path="/" element={<Navigate to="/login" replace />} />
                 <Route path="/login" element={<LoginPage setRole={setRole} />} />
                 <Route path="/signup" element={<SignupPage setRole={setRole} />} />
+                <Route path="/u/:username" element={<PublicProfileRoute />} />
+                <Route path="/s/:publicId" element={<PublicProfileRoute />} />
                 {/* Redirect any other route to login */}
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </Routes>
@@ -98,40 +108,87 @@ function App() {
     <Router>
       <ToasterProvider>
         <div className="App">
-          <MainLayout>
-            <Suspense fallback={<div className="p-6 text-muted-foreground">Loading…</div>}>
+          <Suspense fallback={<div className="p-6 text-muted-foreground">Loading…</div>}>
             <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/opportunities" element={<OpportunitiesPage />} />
-            <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
-            <Route path="/profile" element={<ProfileViewPage />} />
-
-            <Route
-              path="/onboarding"
-              element={
-                <Protected>
-                  <OnboardingPage />
-                </Protected>
-              }
-            />
-
-            <Route path="/create-profile/student" element={<CreateProfileStudent />} />
-            <Route path="/create-profile/employer" element={<CreateProfileEmployer />} />
-
-            <Route path="/create-opportunity" element={<RequireRole allowed={["employer"]}><CreateOpportunityPage /></RequireRole>} />
-
-            <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
-            <Route path="/dashboard/listing/:id" element={<Protected><ListingDetailsPage /></Protected>} />
-            <Route path="/company/:id" element={<CompanyDetailsPage />} />
-            <Route path="/admin" element={<Protected><AdminDashboardPage /></Protected>} />
-            <Route path="/personalization" element={<PersonalizationPage />} />
-            <Route path="/messages" element={<Protected><MessagesPage /></Protected>} />
-            <Route path="/analytics" element={<Protected><EmployerAnalyticsPage /></Protected>} />
-            <Route path="/admin/analytics" element={<Protected><AdminAnalyticsPage /></Protected>} />
+              <Route path="/u/:username" element={<PublicProfileRoute />} />
+              <Route path="/s/:publicId" element={<PublicProfileRoute />} />
+              <Route element={<MainLayoutShell />}>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/opportunities" element={<OpportunitiesPage />} />
+                <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
+                <Route path="/profile" element={<ProfileViewPage />} />
+                <Route
+                  path="/onboarding"
+                  element={
+                    <Protected>
+                      <OnboardingPage />
+                    </Protected>
+                  }
+                />
+                <Route path="/create-profile/student" element={<CreateProfileStudent />} />
+                <Route path="/create-profile/employer" element={<CreateProfileEmployer />} />
+                <Route
+                  path="/create-opportunity"
+                  element={
+                    <RequireRole allowed={["employer"]}>
+                      <CreateOpportunityPage />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <Protected>
+                      <DashboardPage />
+                    </Protected>
+                  }
+                />
+                <Route
+                  path="/dashboard/listing/:id"
+                  element={
+                    <Protected>
+                      <ListingDetailsPage />
+                    </Protected>
+                  }
+                />
+                <Route path="/company/:id" element={<CompanyDetailsPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <Protected>
+                      <AdminDashboardPage />
+                    </Protected>
+                  }
+                />
+                <Route path="/personalization" element={<PersonalizationPage />} />
+                <Route
+                  path="/messages"
+                  element={
+                    <Protected>
+                      <MessagesPage />
+                    </Protected>
+                  }
+                />
+                <Route
+                  path="/analytics"
+                  element={
+                    <Protected>
+                      <EmployerAnalyticsPage />
+                    </Protected>
+                  }
+                />
+                <Route
+                  path="/admin/analytics"
+                  element={
+                    <Protected>
+                      <AdminAnalyticsPage />
+                    </Protected>
+                  }
+                />
+              </Route>
             </Routes>
-            </Suspense>
-          </MainLayout>
+          </Suspense>
         </div>
       </ToasterProvider>
     </Router>
