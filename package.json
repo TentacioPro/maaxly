@@ -17,6 +17,8 @@
     "seed:data": "node server/scripts/seed.js",
     "seed:all": "pwsh -NoProfile -Command \"npm run seed:skills; npm run seed:data\"",
     "seed:students:ai": "node server/scripts/seed-students-ai.js",
+    "seed:profiles": "node server/scripts/seed-profiles-from-data.js",
+    "seed:profiles:complete": "node server/scripts/seed-profiles-complete.js",
     "db:reset": "node server/scripts/reset-db.js"
   },
   "dependencies": {
