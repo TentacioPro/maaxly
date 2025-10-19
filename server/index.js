@@ -1492,7 +1492,7 @@ async function startServer() {
     // Start Kafka consumer
     try {
       // Check broker reachability first to avoid noisy KafkaJS connection timeouts
-  const brokers = (process.env.KAFKA_BROKER || 'localhost:9093').split(',').map(s => s.trim()).filter(Boolean)
+  const brokers = (process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || 'localhost:9092').split(',').map(s => s.trim()).filter(Boolean)
       async function isBrokerReachable(broker) {
         return new Promise((resolve) => {
           const [host, portStr] = broker.split(':')
@@ -1516,7 +1516,7 @@ async function startServer() {
       }
 
       if (!anyReachable) {
-        console.warn('Kafka brokers unreachable; skipping Kafka consumer start. Set KAFKA_BROKER to a reachable broker (e.g. localhost:9093) or start Kafka.')
+        console.warn('Kafka brokers unreachable; skipping Kafka consumer start. Set KAFKA_BROKERS/KAFKA_BROKER to a reachable broker (e.g. localhost:9092) and ensure Docker compose is running.')
       } else {
         await startConsumer()
         console.log('Kafka consumer started')

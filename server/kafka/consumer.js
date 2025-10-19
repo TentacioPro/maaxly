@@ -3,7 +3,12 @@ import Message from '../models/Message.js'
 import Conversation from '../models/Conversation.js'
 import redisClient from '../redis/client.js'
 
-const kafka = new Kafka({ brokers: [process.env.KAFKA_BROKER || 'localhost:9093'] })
+const brokers = (process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || 'localhost:9092')
+  .split(',')
+  .map(b => b.trim())
+  .filter(Boolean)
+
+const kafka = new Kafka({ brokers })
 const consumer = kafka.consumer({ groupId: process.env.KAFKA_GROUP_ID || 'chat-consumer-group' })
 
 export async function startConsumer() {

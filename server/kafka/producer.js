@@ -1,6 +1,16 @@
-import { Kafka } from 'kafkajs'
+import { Kafka, Partitioners } from 'kafkajs'
 
-const kafka = new Kafka({ brokers: [process.env.KAFKA_BROKER || 'localhost:9093'] })
+const brokers = (process.env.KAFKA_BROKERS || process.env.KAFKA_BROKER || 'localhost:9092')
+  .split(',')
+  .map(b => b.trim())
+  .filter(Boolean)
+
+// Use Legacy partitioner by default to retain pre-2.0 behavior unless explicitly disabled
+const useLegacyPartitioner = process.env.KAFKAJS_USE_LEGACY_PARTITIONER !== '0'
+const kafka = new Kafka({
+  brokers,
+  createPartitioner: useLegacyPartitioner ? Partitioners.LegacyPartitioner : undefined
+})
 const producer = kafka.producer()
 
 let started = false
