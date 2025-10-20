@@ -1,0 +1,20 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "batches": [
+    "notion-batch-1-profiles-search-scripts.json",
+    "notion-batch-2-messaging-kafka-redis-events.json",
+    "notion-batch-3-domain-frontend-theme.json",
+    "notion-batch-4-api-health-observability.json",
+    "notion-batch-5-cross-role-metrics.json",
+    "notion-batch-6-accessibility-ui.json",
+    "notion-batch-7-uploads-moderation.json",
+    "notion-batch-8-e2e-journeys-resilience.json",
+    "notion-batch-9-performance.json",
+    "notion-batch-10-privacy-gdpr.json"
+  ],
+  "pages": [
+    
+  
+  
+  ]
+}

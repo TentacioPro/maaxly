@@ -1,0 +1,203 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "Privacy: export user data by request",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Security",
+        "Area": ["Backend", "Documentation"],
+        "Feature": "server/models/User.js; data export script/route (if any)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Export function implemented",
+        "Steps": "1) Request export for user\n2) Verify data includes messages, profiles, applications where applicable\n3) Ensure format is machine-readable (JSON/CSV)",
+        "Expected Result": "Complete and accurate export without unrelated PII",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Data"],
+        "Test Duration": 3.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: delete user data (right to be forgotten)",
+        "Status": "Draft",
+        "Priority": "P0 - Critical",
+        "Type": "Security",
+        "Area": ["Backend", "Documentation"],
+        "Feature": "server/models/User.js; delete scripts/routes",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Deletion mechanism exists",
+        "Steps": "1) Request deletion\n2) Verify personal data removed or anonymized\n3) Check dangling references and metrics backfill",
+        "Expected Result": "Data removed per policy without breaking referential integrity",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Data"],
+        "Test Duration": 3.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: logs redaction of PII (names/emails/ids)",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Security",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js (logger middleware)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Redaction rules implemented",
+        "Steps": "1) Make API calls with PII\n2) Inspect logs\n3) Confirm redaction masks sensitive fields",
+        "Expected Result": "No raw PII stored in logs",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security"],
+        "Test Duration": 1.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: data retention window respected",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Security",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/models/*; retention job/script",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Retention policy/job implemented",
+        "Steps": "1) Seed old data beyond window\n2) Run retention job\n3) Verify data pruned/anonymized as policy",
+        "Expected Result": "Policy enforced without harming current data",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Data"],
+        "Test Duration": 4.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: consent and purposes tracked for analytics",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Security",
+        "Area": ["Backend", "Documentation"],
+        "Feature": "server/models/AnalyticsEvent.js; consent tracking (if any)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Consent mechanism documented",
+        "Steps": "1) Generate analytics event\n2) Ensure consent check present\n3) Confirm data collection aligns with consent",
+        "Expected Result": "Events adhere to consent/purposes",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Documentation"],
+        "Test Duration": 1.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: subject access exposes only own data",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Security",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/routes/* (any user data route)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "AuthZ enforced",
+        "Steps": "1) Auth as user A\n2) Attempt to fetch user B data\n3) Expect 403/404",
+        "Expected Result": "Strict isolation of user data",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: encryption in transit configured",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Security",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "Reverse proxy/TLS termination (infra) — doc reference",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "TLS termination available in environment",
+        "Steps": "1) Access over HTTPS\n2) Verify HSTS and modern cipher suites\n3) Confirm redirects HTTP->HTTPS",
+        "Expected Result": "Secure transport enforced",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Documentation"],
+        "Test Duration": 1.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: secrets not logged or exposed",
+        "Status": "Draft",
+        "Priority": "P0 - Critical",
+        "Type": "Security",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js; config management",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Secret management in use (env vars/vault)",
+        "Steps": "1) Enable verbose logs under test\n2) Inspect for secrets\n3) Verify masks or no logging of secrets",
+        "Expected Result": "No secret leakage in logs or responses",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security"],
+        "Test Duration": 2.3,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Privacy: third-party data sharing minimized (if any)",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Security",
+        "Area": ["Backend", "Documentation"],
+        "Feature": "Docs/policies; server/routes/* (if any integrations)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Integrations documented",
+        "Steps": "1) Identify outbound data flows\n2) Verify minimization and purpose\n3) Confirm user consent for sharing",
+        "Expected Result": "Only necessary data shared with consent",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Documentation"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

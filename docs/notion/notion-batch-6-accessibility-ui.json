@@ -1,0 +1,208 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "A11y: keyboard navigation focus order is logical",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/*; src/App.jsx",
+        "Environment": "Local",
+        "Preconditions": "App renders header, main content, footer",
+        "Steps": "1) Use Tab/Shift+Tab to navigate\n2) Verify focus moves header -> main -> footer logically\n3) Ensure no focus traps",
+        "Expected Result": "Predictable focus order with visible focus ring",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: modals and menus trap focus properly",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/* (modals/menus)",
+        "Environment": "Local",
+        "Preconditions": "Modal/menu component available",
+        "Steps": "1) Open modal/menu\n2) Tab cycles within component\n3) Escape closes and returns focus to trigger",
+        "Expected Result": "No background focus, proper trap and restore",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: screen reader labels for interactive elements",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/*",
+        "Environment": "Local",
+        "Preconditions": "VoiceOver/NVDA/JAWS available (optional)",
+        "Steps": "1) Inspect buttons/links/inputs\n2) Verify aria-label or accessible name present\n3) Confirm icons have aria-hidden when decorative",
+        "Expected Result": "All interactive controls have accessible names",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: color contrast meets WCAG AA in light/dark",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX", "Theme"],
+        "Feature": "src/index.css; src/providers/ThemeProvider.jsx; src/components/ThemeToggle.jsx",
+        "Environment": "Local",
+        "Preconditions": "Theme tokens applied (bg-background, text-foreground)",
+        "Steps": "1) Check primary text vs background\n2) Check buttons/links states\n3) Verify AA contrast in both themes",
+        "Expected Result": "Contrast ratio >= 4.5:1 where required",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: prefers-reduced-motion respected",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX", "Theme"],
+        "Feature": "src/index.css (motion), src/components/*",
+        "Environment": "Local",
+        "Preconditions": "Animations/transitions present",
+        "Steps": "1) Enable reduced motion in OS\n2) Reload app\n3) Verify animations minimized",
+        "Expected Result": "Motion reduced without breaking UX",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 0.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: skip-to-content link works",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/App.jsx; src/components/* (header/main landmarks)",
+        "Environment": "Local",
+        "Preconditions": "Skip link implemented",
+        "Steps": "1) Tab from top of page\n2) Activate skip link\n3) Focus jumps to main content",
+        "Expected Result": "Keyboard users can bypass nav quickly",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI"],
+        "Test Duration": 0.7,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Add skip link if missing"
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: form errors announced via ARIA live regions",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/* (forms)",
+        "Environment": "Local",
+        "Preconditions": "Forms with validation errors",
+        "Steps": "1) Submit invalid form\n2) Screen reader announces error summary\n3) Error linked to fields via aria-describedby",
+        "Expected Result": "Errors perceivable without sight",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: responsive zoom up to 200% without loss",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/*; src/index.css",
+        "Environment": "Local",
+        "Preconditions": "Use browser zoom or system scaling",
+        "Steps": "1) Zoom to 200%\n2) Verify no overlap/cut-off\n3) Interact with core features",
+        "Expected Result": "Layout remains usable and readable",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI"],
+        "Test Duration": 1.3,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: focus visible across all interactive states",
+        "Status": "Ready",
+        "Priority": "P2 - Medium",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/index.css; src/components/*",
+        "Environment": "Local",
+        "Preconditions": "Focus styles implemented",
+        "Steps": "1) Tab through links/buttons/inputs\n2) Verify visible focus ring meets contrast\n3) Check in both themes",
+        "Expected Result": "Consistent, accessible focus indication",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI"],
+        "Test Duration": 1.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "A11y: images/icons have alt or are hidden",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Accessibility",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/*; public/* (if used)",
+        "Environment": "Local",
+        "Preconditions": "Images/icons present",
+        "Steps": "1) Inspect images/icons\n2) Ensure meaningful alt text or aria-hidden\n3) Decorative images not announced",
+        "Expected Result": "No extraneous announcements by screen readers",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 0.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

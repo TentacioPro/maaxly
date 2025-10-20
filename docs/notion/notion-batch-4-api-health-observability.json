@@ -1,0 +1,214 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "API Health: base liveness endpoint responds",
+        "Status": "Ready",
+        "Priority": "P0 - Critical",
+        "Type": "Integration",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js (health route)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Server running",
+        "Steps": "1) GET /health or /\n2) Assert 200 and payload contains status: 'ok' (or equivalent)",
+        "Expected Result": "Liveness check returns 200 with minimal body",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Documentation"],
+        "Test Duration": 0.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Adjust Feature/route path to actual health endpoint"
+      }
+    },
+    {
+      "properties": {
+        "Name": "API Health: readiness checks core dependencies",
+        "Status": "Ready",
+        "Priority": "P0 - Critical",
+        "Type": "Integration",
+        "Area": ["Backend", "DevOps", "Kafka", "Redis"],
+        "Feature": "server/index.js; server/kafka/*; server/redis/client.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Kafka/Redis running",
+        "Steps": "1) GET /ready\n2) Verify JSON includes kafka=ok, redis=ok\n3) Stop one dependency and expect non-200 or degraded status",
+        "Expected Result": "Readiness reflects dependency state accurately",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Performance"],
+        "Test Duration": 1.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Graceful degradation preferred over false-positives"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Global Error Handling: structured error response",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/index.js (error middleware); server/routes/*",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Error middleware configured",
+        "Steps": "1) Trigger route error (e.g., invalid payload)\n2) Assert JSON error schema { message, code, traceId? }\n3) Assert correct HTTP status",
+        "Expected Result": "Consistent error envelope for clients",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Security", "Documentation"],
+        "Test Duration": 0.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "No stack traces leaked in production mode"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Timeouts: slow downstream yields 504/timeout handling",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/routes/* (representative); HTTP client layer if any",
+        "Environment": "Local",
+        "Preconditions": "Ability to simulate slow dependency",
+        "Steps": "1) Trigger route that calls slow dependency\n2) Ensure server times out per policy\n3) Assert 504 or defined timeout response",
+        "Expected Result": "Client receives clear timeout response",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "API"],
+        "Test Duration": 2.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Rate limiting: excessive requests receive 429",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Security", "DevOps"],
+        "Feature": "server/index.js (rate limit middleware); server/redis/client.js",
+        "Environment": "Local",
+        "Preconditions": "Rate limiter enabled",
+        "Steps": "1) Burst requests to a protected route\n2) Observe 429 and Retry-After header\n3) Verify token bucket/leaky bucket behavior as designed",
+        "Expected Result": "Fair usage enforced without crashing service",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Performance"],
+        "Test Duration": 2.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Logging: request/response contains traceId and redacts PII",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Backend", "DevOps", "Security"],
+        "Feature": "server/index.js (logger middleware); server/lib/event-bus.js",
+        "Environment": "Local",
+        "Preconditions": "Structured logging enabled",
+        "Steps": "1) Perform representative API call\n2) Inspect logs for traceId/correlationId\n3) Confirm PII redaction",
+        "Expected Result": "Logs are traceable and safe to ship",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Documentation"],
+        "Test Duration": 1.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Metrics: count of messages sent per minute exported",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Backend", "Messaging", "DevOps"],
+        "Feature": "server/routes/messages.js; server/lib/event-bus.js (metrics hook)",
+        "Environment": "Local",
+        "Preconditions": "Metrics collector wired (custom or Prometheus-compatible)",
+        "Steps": "1) Send N messages\n2) Verify metrics endpoint /metrics exposes counters/gauges\n3) Ensure labels include conversation/user identifiers (anonymized)",
+        "Expected Result": "Metrics reflect produced traffic accurately",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "Documentation"],
+        "Test Duration": 1.7,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "SSE/Webhooks: events endpoint streams without leaks (if exists)",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Events"],
+        "Feature": "server/routes/events.js",
+        "Environment": "Local",
+        "Preconditions": "Streaming mode implemented",
+        "Steps": "1) Connect to stream\n2) Generate events\n3) Observe client updates without memory growth or dropped connections",
+        "Expected Result": "Stable streaming under moderate load",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 3.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "CORS/security headers present and correct",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/index.js (CORS & headers middleware)",
+        "Environment": "Local",
+        "Preconditions": "Security headers middleware configured",
+        "Steps": "1) Call representative endpoints\n2) Inspect response headers (CORS, CSP, HSTS where applicable)\n3) Verify alignment with policy",
+        "Expected Result": "Security posture meets baseline",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Documentation"],
+        "Test Duration": 0.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Graceful shutdown: inflight requests drain on SIGTERM",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js (shutdown hooks); server/kafka/* (disconnect); server/redis/client.js (quit)",
+        "Environment": "Local",
+        "Preconditions": "Can send SIGTERM to process",
+        "Steps": "1) Start long-running request\n2) Send SIGTERM\n3) Confirm connection close after requests drain, dependencies close cleanly",
+        "Expected Result": "No abrupt drops; clean exit codes/logs",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "Documentation"],
+        "Test Duration": 2.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

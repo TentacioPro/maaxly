@@ -1,0 +1,209 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "E2E: Student onboarding and profile completion",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "E2E",
+        "Area": ["Frontend", "Profiles"],
+        "Feature": "server/routes/profileRoutes.js; server/models/StudentProfile.js; src/components/* (profile forms)",
+        "Environment": "Local",
+        "Preconditions": "Server and app running",
+        "Steps": "1) Create student profile\n2) Add education and experience\n3) Add skills and set visibility",
+        "Expected Result": "Profile shows completed state and proper visibility",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "API", "Data"],
+        "Test Duration": 3.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Student searches and applies to opportunity",
+        "Status": "Ready",
+        "Priority": "P0 - Critical",
+        "Type": "E2E",
+        "Area": ["Frontend", "Search"],
+        "Feature": "server/routes/search.js; server/models/Application.js; server/models/Opportunity.js",
+        "Environment": "Local",
+        "Preconditions": "At least one opportunity exists",
+        "Steps": "1) Search for relevant opportunity\n2) Open detail and apply\n3) Confirm application recorded",
+        "Expected Result": "Application visible via API/admin metrics later",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "API", "Data"],
+        "Test Duration": 3.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Messaging flow student ↔ employer",
+        "Status": "Ready",
+        "Priority": "P0 - Critical",
+        "Type": "E2E",
+        "Area": ["Frontend", "Messaging"],
+        "Feature": "server/routes/messages.js; server/models/Conversation.js; server/models/Message.js",
+        "Environment": "Local",
+        "Preconditions": "Conversation can be created between users",
+        "Steps": "1) Student sends message\n2) Employer replies\n3) Thread shows messages in order",
+        "Expected Result": "End-to-end delivery and retrieval work",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "UI"],
+        "Test Duration": 2.7,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Employer reviews applications and responds",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "E2E",
+        "Area": ["Frontend"],
+        "Feature": "server/models/Application.js; server/models/Opportunity.js",
+        "Environment": "Local",
+        "Preconditions": "Applications exist for employer's opportunities",
+        "Steps": "1) Employer views applications list\n2) Opens applicant profile\n3) Initiates reply via messaging",
+        "Expected Result": "Employer workflow smooth and consistent",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "API"],
+        "Test Duration": 2.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Admin sees metrics update after interactions",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "E2E",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/models/AnalyticsEvent.js; admin metrics endpoint",
+        "Environment": "Local",
+        "Preconditions": "Metrics aggregation functional",
+        "Steps": "1) Perform interactions (messages/applications)\n2) Refresh metrics\n3) Admin checks totals and DAU",
+        "Expected Result": "Admin metrics reflect latest interactions",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "Data"],
+        "Test Duration": 2.3,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Theme toggle persists across reload",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Component",
+        "Area": ["Frontend", "Theme", "UI/UX"],
+        "Feature": "src/components/ThemeToggle.jsx; src/providers/ThemeProvider.jsx",
+        "Environment": "Local",
+        "Preconditions": "Theme persistence implemented (e.g., localStorage)",
+        "Steps": "1) Toggle theme to dark\n2) Reload app\n3) Verify dark theme remains",
+        "Expected Result": "Preference remembered across sessions",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 0.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "If not persisted, add as enhancement"
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Search results stable across pagination/sorting",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Frontend", "Search"],
+        "Feature": "server/routes/search.js",
+        "Environment": "Local",
+        "Preconditions": "Enough data for multiple pages",
+        "Steps": "1) Apply sort and filter\n2) Page through results\n3) Verify no duplicates and stable ordering",
+        "Expected Result": "Deterministic results across pages",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Performance", "API"],
+        "Test Duration": 1.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Network error UI and retry flow",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Frontend", "UI/UX"],
+        "Feature": "src/components/* (error boundaries/toasts)",
+        "Environment": "Local",
+        "Preconditions": "Simulate API 5xx or offline",
+        "Steps": "1) Trigger network error\n2) Observe error state/toast\n3) Retry restores normal state",
+        "Expected Result": "Clear error feedback and recovery path",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Session/role switching reflects correct permissions",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Frontend", "Auth"],
+        "Feature": "server/models/User.js; any role guards in routes/UI",
+        "Environment": "Local",
+        "Preconditions": "Role-based UI/API enforced (if enabled)",
+        "Steps": "1) Use user with multiple roles or switch users\n2) Verify permitted features visible\n3) Verify restricted features hidden/blocked",
+        "Expected Result": "Role constraints consistently enforced",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "UI"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Mark N/A if roles not in UI yet"
+      }
+    },
+    {
+      "properties": {
+        "Name": "E2E: Cache behavior—stale-while-revalidate pattern (if used)",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Performance",
+        "Area": ["Frontend", "DevOps"],
+        "Feature": "src/lib/* (fetch wrappers if any); server/index.js (cache headers)",
+        "Environment": "Local",
+        "Preconditions": "Caching headers or client cache in place",
+        "Steps": "1) Load list view\n2) Update data in background\n3) Confirm UI updates after revalidation",
+        "Expected Result": "Fast initial render with eventual consistency",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "UI"],
+        "Test Duration": 2.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

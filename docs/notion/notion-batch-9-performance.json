@@ -1,0 +1,225 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "Perf: messaging throughput meets p95/p99 SLO",
+        "Status": "Draft",
+        "Priority": "P0 - Critical",
+        "Type": "Performance",
+        "Area": ["Backend", "Messaging", "Kafka", "DevOps"],
+        "Feature": "server/routes/messages.js; server/kafka/*; server/models/Message.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Load generator available (k6/JMeter) and Kafka running",
+        "Steps": "1) Ramp to target RPS sending messages\n2) Measure p95/p99 latency\n3) Verify error rate < threshold",
+        "Expected Result": "p95/p99 latency within SLO; error rate within threshold",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "API", "Backend"],
+        "Test Duration": 10.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: Kafka backpressure and consumer lag under burst",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Performance",
+        "Area": ["Backend", "Kafka", "DevOps"],
+        "Feature": "server/kafka/producer.js; server/kafka/consumer.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Kafka topic configured; metrics for lag visible",
+        "Steps": "1) Produce burst >> steady state\n2) Observe consumer lag and catch-up time\n3) Validate no message loss",
+        "Expected Result": "Lag grows under burst but recovers; no loss or duplicates",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "Data"],
+        "Test Duration": 8.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: Redis cache hit ratio for hot endpoints",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "Redis", "DevOps"],
+        "Feature": "server/redis/client.js; server/routes/search.js (or profiles)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Caching in place for endpoint",
+        "Steps": "1) Warm with repeated identical requests\n2) Measure hit/miss ratio\n3) Validate latency improvement",
+        "Expected Result": "Hit ratio improves >70% for hot keys and latency drops",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 5.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: search endpoint p95 latency and error budget",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Performance",
+        "Area": ["Backend", "Search", "DevOps"],
+        "Feature": "server/routes/search.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Dataset seeded; load tool ready",
+        "Steps": "1) Run steady load with varied queries\n2) Measure p95 latency and error rate\n3) Validate within target SLO/error budget",
+        "Expected Result": "Meets SLO and stays within error budget",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "API"],
+        "Test Duration": 7.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: profiles listing pagination stable under load",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "Profiles"],
+        "Feature": "server/routes/profiles.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "30+ profiles exist",
+        "Steps": "1) Concurrently fetch pages 1..N\n2) Check duplicates/missing\n3) Observe CPU/memory and response times",
+        "Expected Result": "Consistent results and acceptable resource usage",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "API", "Data"],
+        "Test Duration": 4.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: connection limits respected (Kafka/Redis/HTTP)",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "DevOps", "Kafka", "Redis"],
+        "Feature": "server/kafka/*; server/redis/client.js; server/index.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Connection pool settings configured",
+        "Steps": "1) Simulate many concurrent clients\n2) Observe pool behavior and server stability\n3) No 5xx spikes due to exhaustion",
+        "Expected Result": "No resource starvation; graceful limiting",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 6.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: memory plateau under 30-min sustained traffic",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Performance",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js; server/routes/*",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Memory metrics visible",
+        "Steps": "1) Run sustained traffic 30 min\n2) Record memory RSS/heap\n3) Ensure plateau without steady growth",
+        "Expected Result": "No leaks; memory stabilizes",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 35.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: cold start and readiness under load",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/index.js; server/kafka/*; server/redis/client.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Readiness endpoint implemented",
+        "Steps": "1) Start service under background load\n2) Measure time to readiness\n3) Verify requests handled post-ready",
+        "Expected Result": "Startup within target; no early 5xx",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 3.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: rate limiter holds under coordinated load",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "Security", "DevOps"],
+        "Feature": "server/index.js (rate limit); server/redis/client.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Limiter enabled and configured",
+        "Steps": "1) Coordinate many clients to exceed limits\n2) Ensure 429 responses not 5xx\n3) Verify service stays responsive",
+        "Expected Result": "Graceful throttling under abuse",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Performance"],
+        "Test Duration": 6.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Perf: metrics propagation latency to admin within SLA",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Performance",
+        "Area": ["Backend", "Kafka", "DevOps"],
+        "Feature": "server/kafka/*; analytics pipeline; admin metrics endpoint",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "SLA defined (e.g., <5s) and measurement in place",
+        "Steps": "1) Generate N interactions\n2) Poll admin metrics endpoint\n3) Record time to reflect changes",
+        "Expected Result": "SLA met for end-to-end propagation",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance", "Data"],
+        "Test Duration": 4.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

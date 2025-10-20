@@ -1,0 +1,225 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "Admin Dashboard: total messages updates from student sends",
+        "Status": "Ready",
+        "Priority": "P0 - Critical",
+        "Type": "Integration",
+        "Area": ["Backend", "Messaging", "Profiles"],
+        "Feature": "server/models/Message.js; server/models/AnalyticsEvent.js; server/routes/events.js (if used)",
+        "Environment": "Local",
+        "Preconditions": "Admin metrics aggregator running; message flow operational",
+        "Steps": "1) As Student, send N messages\n2) Trigger metrics refresh/ingest\n3) As Admin, fetch metrics endpoint/dashboard",
+        "Expected Result": "Total messages increases by N in admin metrics",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data", "Performance"],
+        "Test Duration": 2.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: active conversations reflect employer replies",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "Messaging", "Profiles"],
+        "Feature": "server/models/Conversation.js; server/models/Message.js",
+        "Environment": "Local",
+        "Preconditions": "Employers can reply; conversation state tracked",
+        "Steps": "1) Start conversation (Student->Employer)\n2) As Employer, reply to thread\n3) Fetch admin metric active_conversations",
+        "Expected Result": "Active conversations count increases accordingly",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data"],
+        "Test Duration": 1.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: opportunity applications reflect student actions",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/models/Application.js; server/models/Opportunity.js; server/models/AnalyticsEvent.js",
+        "Environment": "Local",
+        "Preconditions": "Opportunity present; application route working",
+        "Steps": "1) As Student, apply to opportunity\n2) Ensure analytics/metrics ingest\n3) Admin fetch metrics",
+        "Expected Result": "Applications count increases by 1",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data"],
+        "Test Duration": 1.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: daily active users fed by interactions",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/models/AnalyticsEvent.js; server/routes/events.js",
+        "Environment": "Local",
+        "Preconditions": "DAU metric computed from events",
+        "Steps": "1) Simulate logins/interactions from multiple users\n2) Run metric aggregator\n3) Verify DAU increases to distinct count",
+        "Expected Result": "DAU reflects distinct active users",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 2.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: employer engagement metrics update (views, replies)",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Profiles", "Messaging"],
+        "Feature": "server/models/EmployerProfile.js; server/models/Message.js; server/models/AnalyticsEvent.js",
+        "Environment": "Local",
+        "Preconditions": "Employer interactions tracked as events",
+        "Steps": "1) Employer views applications and replies to messages\n2) Trigger metrics ingest\n3) Verify engagement metrics increase",
+        "Expected Result": "Engagement metrics match interactions",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data"],
+        "Test Duration": 2.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: top skills demand aggregates from applications",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Component",
+        "Area": ["Backend", "Profiles", "Search"],
+        "Feature": "server/models/Skill.js; server/models/Application.js; analytics pipeline",
+        "Environment": "Local",
+        "Preconditions": "Applications tagged with skills",
+        "Steps": "1) Create applications with varied skills\n2) Run aggregation\n3) Verify top skills list in admin data",
+        "Expected Result": "Top skills reflect application distribution",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data", "Documentation"],
+        "Test Duration": 2.5,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Admin Dashboard: student profile completion rate",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Component",
+        "Area": ["Backend", "Profiles"],
+        "Feature": "server/models/StudentProfile.js; analytics pipeline",
+        "Environment": "Local",
+        "Preconditions": "Profile completion rules defined",
+        "Steps": "1) Update profiles with varying completeness\n2) Run aggregator\n3) Verify completion rate metrics",
+        "Expected Result": "Completion rate matches sample data",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data"],
+        "Test Duration": 1.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Role-based Segregation: admin sees aggregates, not PII",
+        "Status": "Ready",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/models/AdminProfile.js; metrics endpoint (secure)",
+        "Environment": "Local",
+        "Preconditions": "Admin authentication in place (or simulated)",
+        "Steps": "1) As Admin, GET /admin/metrics\n2) Verify aggregate metrics no PII\n3) As non-admin, expect 403/404",
+        "Expected Result": "Access control enforced; no raw PII exposed",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Propagation Latency: metrics reflect events within SLA",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Performance",
+        "Area": ["Backend", "DevOps", "Kafka"],
+        "Feature": "server/kafka/*; analytics pipeline; admin metrics endpoint",
+        "Environment": "Local",
+        "Preconditions": "SLA defined (e.g., <5s)",
+        "Steps": "1) Generate interactions (messages/applications)\n2) Measure time until admin metrics update\n3) Assert within SLA",
+        "Expected Result": "End-to-end latency meets target",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Performance"],
+        "Test Duration": 3.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    },
+    {
+      "properties": {
+        "Name": "Backfill/Replay: late events still update metrics correctly",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Kafka"],
+        "Feature": "server/kafka/consumer.js; analytics pipeline",
+        "Environment": "Local",
+        "Preconditions": "Ability to replay historical events",
+        "Steps": "1) Replay events for prior period\n2) Run aggregation\n3) Validate admin metrics reflect backfilled data",
+        "Expected Result": "Backfill safe and accurate",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Data", "Performance"],
+        "Test Duration": 3.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "Opportunities: create and list",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/models/Opportunity.js; server/routes/search.js (if used for listing)",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Server running",
+        "Steps": "1) Create opportunity (API or model)\n2) List opportunities\n3) Assert new record appears",
+        "Expected Result": "Opportunity lifecycle basic path works",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Backend", "Data"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Applications: submit to opportunity (no duplicate)",
+        "Status": "Draft",
+        "Priority": "P0 - Critical",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/models/Application.js; server/models/Opportunity.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Opportunity and user exist",
+        "Steps": "1) Submit application once\n2) Attempt duplicate submit\n3) Expect 409 or validation error",
+        "Expected Result": "Duplicate applications prevented",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Backend", "Data"],
+        "Test Duration": 2.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Subscriptions: create and assign plan",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/models/Subscription.js; server/models/Plan.js; server/models/User.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Plans seeded or created",
+        "Steps": "1) Create subscription for user\n2) Assign plan\n3) Verify entitlement fields",
+        "Expected Result": "User has active subscription with plan reference",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Backend", "Data"],
+        "Test Duration": 1.7,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Skills: tag and search by skill",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Search", "Profiles"],
+        "Feature": "server/models/Skill.js; server/routes/search.js; server/models/Profile.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Profiles exist with varying skills",
+        "Steps": "1) Tag profile with skill X\n2) GET /search?q=skill:X (or equivalent)\n3) Assert matching profiles returned",
+        "Expected Result": "Skill-based discovery works",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Backend", "Data"],
+        "Test Duration": 1.3,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Adjust query syntax to implementation"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Education: add entry to profile",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Unit",
+        "Area": ["Backend", "Profiles"],
+        "Feature": "server/models/Education.js; server/models/Profile.js; server/routes/profileRoutes.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Profile exists",
+        "Steps": "1) POST education to profile\n2) GET profile\n3) Verify education array includes new item",
+        "Expected Result": "Education entry persisted",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Backend", "Data"],
+        "Test Duration": 1.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Experience: add entry to profile",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Unit",
+        "Area": ["Backend", "Profiles"],
+        "Feature": "server/models/Experience.js; server/models/Profile.js; server/routes/profileRoutes.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Profile exists",
+        "Steps": "1) POST experience to profile\n2) GET profile\n3) Verify experience array includes new item",
+        "Expected Result": "Experience entry persisted",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Backend", "Data"],
+        "Test Duration": 1.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "AnalyticsEvent: track message sent event",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Messaging"],
+        "Feature": "server/models/AnalyticsEvent.js; server/routes/messages.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Messaging flow operational",
+        "Steps": "1) Send message\n2) Verify analytics event persisted with correct attributes\n3) Ensure no PII leakage in event",
+        "Expected Result": "Analytic event stored and scrubbed per policy",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Backend", "Data", "Security"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Adjust fields to schema"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Frontend: theme toggle applies semantic tokens",
+        "Status": "Ready",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Frontend", "UI/UX", "Theme"],
+        "Feature": "src/providers/ThemeProvider.jsx; src/components/ThemeToggle.jsx; src/index.css",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "App running via Vite",
+        "Steps": "1) Click ThemeToggle\n2) Inspect DOM for bg-background/text-foreground\n3) Verify tokens update consistently",
+        "Expected Result": "Theme switches across app elements",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Documentation"],
+        "Test Duration": 1.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "date:Last Run:start": "2025-10-19",
+        "date:Last Run:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Frontend: search input debounces requests",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Component",
+        "Area": ["Frontend", "UI/UX", "Search"],
+        "Feature": "src/components/* (search UI); server/routes/search.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Search UI wired to API",
+        "Steps": "1) Type quickly in search box\n2) Assert limited number of API calls\n3) Verify results update after pause",
+        "Expected Result": "Debounce prevents request flood",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "Performance"],
+        "Test Duration": 1.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Frontend: message composer disables send on empty",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Component",
+        "Area": ["Frontend", "UI/UX", "Messaging"],
+        "Feature": "src/components/* (composer); server/routes/messages.js",
+        "Environment": "Local",
+        "Owner": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Reporter": ["[user://14dd872b-594c-812e-9aaa-00024b6a1e40](user://14dd872b-594c-812e-9aaa-00024b6a1e40)"],
+        "Preconditions": "Composer renders",
+        "Steps": "1) Ensure input empty\n2) Verify Send disabled\n3) Type text -> Send enabled",
+        "Expected Result": "UX prevents empty messages",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["UI", "API"],
+        "Test Duration": 0.8,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    }
+  ]
+}

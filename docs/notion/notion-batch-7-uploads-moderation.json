@@ -1,0 +1,209 @@
+{
+  "parentDataSourceUrl": "[Maaxly Test Cases](https://www.notion.so/8e387f94f10442038680b7446cfeac66/ds/291821bd1bd98075bf3c000b3c398d29?db=291821bd1bd98067ae9ff8e903a399e0&pvs=21)",
+  "pages": [
+    {
+      "properties": {
+        "Name": "Uploads: image upload succeeds and persists",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/uploads/; server/routes/* (upload route if present)",
+        "Environment": "Local",
+        "Preconditions": "Upload endpoint available; storage path writable",
+        "Steps": "1) POST image file\n2) Assert 200 and file metadata\n3) Verify file exists in server/uploads/",
+        "Expected Result": "File stored and retrievable via expected path/url",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Data"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Adjust Feature path to exact route when known"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: file type whitelist enforced",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/routes/* (upload validation)",
+        "Environment": "Local",
+        "Preconditions": "MIME/type validation configured",
+        "Steps": "1) Upload disallowed type (e.g., exe)\n2) Assert 400 with validation error",
+        "Expected Result": "Disallowed types rejected safely",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.1,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: max size enforced with clear error",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/index.js (body limits); server/routes/*",
+        "Environment": "Local",
+        "Preconditions": "Size limit configured",
+        "Steps": "1) Upload > limit file\n2) Assert 413 Payload Too Large (or defined code)\n3) Error message present",
+        "Expected Result": "Oversized uploads blocked",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.0,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: unauthorized upload blocked (if auth enabled)",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Security", "Auth"],
+        "Feature": "server/routes/* (upload auth)",
+        "Environment": "Local",
+        "Preconditions": "Auth in place",
+        "Steps": "1) Upload without auth\n2) Expect 401/403 per policy",
+        "Expected Result": "Only authorized users may upload",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 0.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Mark N/A if no auth"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: delete removes file and references",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend"],
+        "Feature": "server/uploads/; server/routes/*",
+        "Environment": "Local",
+        "Preconditions": "File exists and is referenced by an entity",
+        "Steps": "1) DELETE file endpoint\n2) Assert 200 and removal from storage\n3) Entity no longer references file",
+        "Expected Result": "No broken references remain",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Data"],
+        "Test Duration": 1.7,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: public vs private access rules enforced",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Integration",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/uploads/; server/routes/*",
+        "Environment": "Local",
+        "Preconditions": "Access policy defined for files",
+        "Steps": "1) Try to GET private file anonymously\n2) Expect 403/404\n3) Auth user with permission can access",
+        "Expected Result": "Access conforms to policy",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.6,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Messaging: send with image/file attachment",
+        "Status": "Draft",
+        "Priority": "P1 - High",
+        "Type": "Integration",
+        "Area": ["Backend", "Messaging"],
+        "Feature": "server/routes/messages.js; server/uploads/; server/models/Message.js",
+        "Environment": "Local",
+        "Preconditions": "Attachment field supported",
+        "Steps": "1) Upload file\n2) POST /messages with attachment reference\n3) Fetch conversation and verify attachment metadata",
+        "Expected Result": "Attachment linked and retrievable",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["API", "Backend"],
+        "Test Duration": 2.2,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: filename sanitization prevents path traversal",
+        "Status": "Draft",
+        "Priority": "P0 - Critical",
+        "Type": "Security",
+        "Area": ["Backend", "Security"],
+        "Feature": "server/routes/* (upload handler)",
+        "Environment": "Local",
+        "Preconditions": "Upload handler normalizes names",
+        "Steps": "1) Upload file with '../' in name\n2) Verify stored path safe\n3) Ensure no write outside uploads dir",
+        "Expected Result": "No directory traversal possible",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "API"],
+        "Test Duration": 1.3,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0
+      }
+    },
+    {
+      "properties": {
+        "Name": "Content moderation: offensive text blocked or flagged (if enabled)",
+        "Status": "Draft",
+        "Priority": "P2 - Medium",
+        "Type": "Security",
+        "Area": ["Backend", "Messaging"],
+        "Feature": "server/models/Message.js; moderation layer (if present)",
+        "Environment": "Local",
+        "Preconditions": "Moderation rules in place",
+        "Steps": "1) Send message with prohibited terms\n2) Expect 400 or flag set on message\n3) Admin metrics exclude flagged if policy requires",
+        "Expected Result": "Policy enforced consistently",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Security", "Data", "API"],
+        "Test Duration": 1.9,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "Mark N/A if moderation not implemented"
+      }
+    },
+    {
+      "properties": {
+        "Name": "Uploads: orphaned files audit discovers unreferenced blobs",
+        "Status": "Draft",
+        "Priority": "P3 - Low",
+        "Type": "Component",
+        "Area": ["Backend", "DevOps"],
+        "Feature": "server/uploads/; maintenance job/script (if any)",
+        "Environment": "Local",
+        "Preconditions": "Some files no longer referenced",
+        "Steps": "1) Run audit\n2) List orphaned files\n3) Review and clean up",
+        "Expected Result": "Storage hygiene maintained",
+        "Actual Result": "Pending execution",
+        "Run Result": "Skipped",
+        "Tags": ["Documentation", "Performance"],
+        "Test Duration": 2.4,
+        "date:Created:start": "2025-10-19",
+        "date:Created:is_datetime": 0,
+        "Notes": "If no script, track as tech debt"
+      }
+    }
+  ]
+}
