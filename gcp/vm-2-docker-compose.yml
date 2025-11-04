@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  maaxly-mongo:
+    image: mongo:latest
+    container_name: maaxly-mongo
+    ports: ["27017:27017"] #Exposed only to internal VPC
+    volumes: ["mongo_data:/data/db"]
+    restart: unless-stopped
+  maaxly-redis:
+    image: redis:7-alpine
+    container_name: maaxly-redis
+    ports: ["6379:6379"] # Exposed only to internal VPC
+    volumes: ["redis_data:/data"]
+    restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "portainer_data:/data"
+
+volumes:
+  mongo_data:
+  redis_data:
+  portainer_data:

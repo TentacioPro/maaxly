@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  maaxly-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maaxly-app
+    restart: unless-stopped
+    environment:
+      # 🚨 UPDATE VM_2_INTERNAL_IP with the actual internal IP of vm-2-data
+      - MONGODB_URI=mongodb://10.128.0.2:27017/maaxly-db
+      - REDIS_URL=redis://10.128.0.2:6379
+      - JWT_SECRET=H+cpMJchWXEYRf6sB/6XqrOkgqPEuPIIHaziSfLFmXzcKndqtW+vbzPgGiAvAY2I # 🚨 UPDATE THIS
+      - PORT=4000
+      - CORS_ORIGIN=https://maaxly-trial.duckdns.org # 🚨 UPDATE THIS
+    depends_on:
+      - npm-proxy
+
+  npm-proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: npm-proxy
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "81:81"]
+    volumes: ["npm_data:/data", "npm_letsencrypt:/etc/letsencrypt"]
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "portainer_data:/data"
+
+volumes:
+  npm_data:
+  npm_letsencrypt:
+  portainer_data:
