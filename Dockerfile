@@ -9,13 +9,20 @@ COPY package*.json ./
 # Install all deps (prod + dev for build)
 RUN npm ci
 
-# Copy source for Vite build (index.html + src/ + config; targeted to avoid full repo bloat)
+# Copy source for Vite build (index.html + src/ + config; targeted)
 COPY index.html ./
+# Tailwind config for theming (per blueprint)
+COPY tailwind.config.js ./
+
 COPY src ./src
 COPY vite.config.js ./
-COPY tailwind.config.js ./  # If used (per blueprint theming)
-COPY postcss.config.js ./   # If exists (Tailwind postcss)
-COPY .eslintrc.* ./         # If ESLint runs during build
+
+# Optional: PostCSS if exists (Tailwind processing)
+COPY postcss.config.js ./ || true
+
+# Optional: ESLint if runs during build
+COPY .eslintrc.cjs ./ || true
+COPY .eslintrc.json ./ || true
 
 # Build React frontend (Vite outputs to /dist)
 RUN npm run build
