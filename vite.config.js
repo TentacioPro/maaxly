@@ -9,13 +9,17 @@ const __dirname = path.dirname(__filename)
 
 export default defineConfig({
   plugins: [react()],
-   resolve: {
+  root: '.',  // Explicit: Treat monorepo root as base (ensures index.html scan)
+  resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   build: {
+    outDir: 'dist',  // Explicit output dir (for server static serve from ../dist)
+    emptyOutDir: true,  // Clean dist before build (avoids stale assets)
     rollupOptions: {
+      input: './index.html',  // Key: Forces Rollup to start from root index.html (resolves entry error)
       output: {
         manualChunks: {
           react: ['react', 'react-dom', 'react-router-dom'],
