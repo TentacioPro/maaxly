@@ -1,22 +1,37 @@
-# This is the Dockerfile for the BACKEND API (`maaxly-app`)
+# --- STAGE 1: Build the React Frontend ---
+FROM node:20-alpine AS builder
+WORKDIR /app
 
+# Copy all package files
+COPY package*.json ./
+
+# Install all dependencies
+RUN npm ci
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the static React app
+RUN npm run build
+
+# --- STAGE 2: Create the Production Server ---
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
 # Copy package files for prod install
 COPY package*.json ./
 
-# Install only prod deps
+# Install only prod deps (skips dev like vite, eslint)
 RUN npm ci --only=production && npm cache clean --force
 
-# Copy the ENTIRE server directory and all its sub-folders
+# (FIX) This now copies the entire server directory AND all its sub-folders
 COPY server/ ./server/
 
-# Copy environment files
-COPY .env* ./
+# (FIX) This copies the built frontend from the builder stage
+COPY --from=builder /app/dist ./server/dist
 
-# Expose the internal API port
+# Expose port (per your Nginx proxy)
 EXPOSE 4000
 
-# Start the backend server
+# Start backend (serves API + static /dist)
 CMD ["node", "server/index.js"]
