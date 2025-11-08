@@ -23,9 +23,11 @@ COPY package*.json ./
 # Install only prod deps (skips dev like vite, eslint)
 RUN npm ci --only=production && npm cache clean --force
 
-# Copy server code + built frontend
+# Copy server code + built frontend (from builder stage)
 COPY server ./server
-COPY dist ./dist  # Vite build output; adjust if your vite.config.js uses 'build.outDir'
+COPY --from=builder /app/dist ./dist
+# Vite build output; adjust if your vite.config.js uses 'build.outDir'
+
 COPY .env* ./
 
 # Expose port (per your Nginx proxy)
