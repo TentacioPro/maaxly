@@ -29,7 +29,6 @@ import { GridFSBucket } from "mongodb";
 // 1. (FIX) ADDED THIS to get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const path = require('path');
 const app = express();
 const port = process.env.PORT || 4000;
 const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017";
