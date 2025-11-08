@@ -4,6 +4,8 @@ import mongoose from 'mongoose'
 import bcrypt from 'bcrypt'
 import cors from 'cors'
 import jwt from 'jsonwebtoken'
+import path from 'path' // 1. (FIX) ADDED THIS
+import { fileURLToPath } from 'url' // 1. (FIX) ADDED THIS
 import User from './models/User.js'
 import StudentProfile from './models/StudentProfile.js'
 import EmployerProfile from './models/EmployerProfile.js'
@@ -14,16 +16,19 @@ import Skill from './models/Skill.js'
 import AnalyticsEvent from './models/AnalyticsEvent.js'
 import Plan from './models/Plan.js'
 import Subscription from './models/Subscription.js'
-import messagesRouter from './routes/messages.js'
-import usersSearchRouter from './routes/search.js'
-import eventsRouter from './routes/events.js'
-import profilesRouter from './routes/profiles.js'
-import publicProfileRouter from './routes/profileRoutes.js'
 import { startConsumer } from './kafka/consumer.js'
-import redisClient from './redis/client.js'
+import { redisClient } from './redis/client.js'
+import authMiddleware, { adminRequired } from './middleware/auth.js'
+import messageRouter from './routes/messages.js'
+import usersSearchRouter from './routes/search.js'
+import publicProfileRouter from './routes/profileRoutes.js'
 import { publishMessage } from './kafka/producer.js'
 import multer from 'multer'
 import { GridFSBucket } from 'mongodb'
+
+// 1. (FIX) ADDED THIS to get __dirname in ES Modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const port = process.env.PORT || 4000
@@ -37,9 +42,7 @@ app.use(express.json())
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
 app.use(cors({ origin: corsOrigin }))
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Server is running' })
-})
+// 2. (FIX) THE BROKEN app.get('/') ROUTE IS GONE
 
 // Test route for health + db ping
 app.get('/api/test', async (req, res) => {
@@ -62,19 +65,12 @@ app.post('/api/auth/signup', async (req, res) => {
     if (existing) return res.status(409).json({ message: 'Email already in use' })
 
     const saltRounds = 10
-    const hashed = await bcrypt.hash(password, saltRounds)
-
-    const user = new User({ email, password: hashed })
+    const passwordHash = await bcrypt.hash(password, saltRounds)
+    const user = new User({ email, passwordHash })
     await user.save()
 
-    // Do not return password in response
-  const userObj = user.toObject()
-  delete userObj.password
-
-  // sign a token
-  const token = jwt.sign({ sub: user._id }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' })
-
-  res.status(201).json({ success: true, user: userObj, token })
+    const token = jwt.sign({ sub: user._id, email: user.email, role: user.role, isAdmin: user.isAdmin }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' })
+    res.json({ success: true, token })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -85,354 +81,277 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' })
 
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ email }).lean() // .lean() for faster, plain object
     if (!user) return res.status(401).json({ message: 'Invalid credentials' })
 
-    const match = await bcrypt.compare(password, user.password)
+    const match = await bcrypt.compare(password, user.passwordHash)
     if (!match) return res.status(401).json({ message: 'Invalid credentials' })
 
-    const userObj = user.toObject()
-    delete userObj.password
-
-    const token = jwt.sign({ sub: user._id }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' })
-
-    res.json({ success: true, user: userObj, token })
+    const token = jwt.sign({ sub: user._id, email: user.email, role: user.role, isAdmin: user.isAdmin }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' })
+    res.json({ success: true, token })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
-// auth middleware
-function authMiddleware(req, res, next) {
-  const auth = req.headers.authorization
-  // debug: log the raw Authorization header (helps diagnose PowerShell/curl header formatting issues)
-  console.log('[authMiddleware] Authorization header:', auth)
-  if (!auth || !auth.startsWith('Bearer ')) {
-    console.warn('[authMiddleware] Missing or malformed Authorization header')
-    return res.status(401).json({ message: 'Missing token' })
-  }
-  const token = auth.slice(7)
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
-    req.userId = payload.sub
-    return next()
-  } catch (err) {
-    console.error('[authMiddleware] Invalid token:', err && err.message)
-    return res.status(401).json({ message: 'Invalid token' })
-  }
-}
-
-async function attachCompanyProfiles(docs) {
-  if (!docs) return docs
-  const items = Array.isArray(docs) ? docs : [docs]
-  if (!items.length) return docs
-
-  const ownerIds = Array.from(new Set(items
-    .map((item) => {
-      if (!item || !item.owner) return null
-      if (typeof item.owner === 'object' && item.owner._id) return String(item.owner._id)
-      return String(item.owner)
-    })
-    .filter(Boolean)))
-
-  if (!ownerIds.length) return docs
-
-  const profiles = await EmployerProfile.find({ userId: { $in: ownerIds } })
-    .select('_id userId companyName companyWebsite fullName contactEmail contactPhone location industry')
-    .lean()
-
-  const byOwner = new Map(profiles.map((profile) => [String(profile.userId), profile]))
-
-  const enhanced = items.map((item) => {
-    if (!item) return item
-    const key = typeof item.owner === 'object' && item.owner._id ? String(item.owner._id) : String(item.owner || '')
-    const profile = byOwner.get(key)
-    if (!profile) {
-      return { ...item, companyProfile: null }
-    }
-    return {
-      ...item,
-      companyProfile: {
-        _id: profile._id,
-        userId: profile.userId,
-        companyName: profile.companyName || profile.fullName || null,
-        companyWebsite: profile.companyWebsite || null,
-        contactEmail: profile.contactEmail || null,
-        contactPhone: profile.contactPhone || null,
-        location: profile.location || null,
-        industry: profile.industry || null
-      },
-      company: profile.companyName || item.company || null,
-      companyName: profile.companyName || item.companyName || item.company || null
-    }
-  })
-
-  return Array.isArray(docs) ? enhanced : enhanced[0]
-}
-
-// adminRequired middleware: ensures user is authenticated and isAdmin === true
-function adminRequired(req, res, next) {
-  // reuse authMiddleware to validate token and set req.userId
-  authMiddleware(req, res, async () => {
-    try {
-      const requester = await User.findById(req.userId)
-      if (!requester) return res.status(401).json({ message: 'Unauthorized' })
-  // Only true administrators allowed
-  if (requester.isAdmin !== true) return res.status(403).json({ message: 'Forbidden: admin only' })
-      return next()
-    } catch (err) {
-      console.error('[adminRequired] error:', err && err.message)
-      return res.status(500).json({ message: 'Server error' })
-    }
-  })
-}
-
-// Legacy profile endpoint removed; use /api/profile/student or /api/profile/employer
-
-// Create or update student profile (protected)
-function slugifyName(name) {
-  return (name || '')
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-}
-
-async function generateUniqueUsername(base) {
-  const baseSlug = slugifyName(base) || 'user'
-  let candidate = baseSlug
-  let n = 1
-  // Probe for existence; increment suffix until free
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    // Using StudentProfile model imported above
-    const exists = await StudentProfile.findOne({ username: candidate }).select('_id').lean()
-    if (!exists) return candidate
-    n += 1
-    candidate = `${baseSlug}-${n}`
-  }
-}
-
-async function handleCreateStudentProfile(req, res) {
-  try {
-    const targetUserId = req.params.userId || req.userId
-    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
-    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
-
-    const { fullName, college, graduationYear, major } = req.body
-    let { skills } = req.body
-
-    // Normalize skills to ObjectId refs from names if provided as strings
-    if (Array.isArray(skills)) {
-      const byName = await Skill.find({ name: { $in: skills.filter(s => typeof s === 'string') } }).select('_id name').lean()
-      const idSet = new Set()
-      for (const s of skills) {
-        if (typeof s === 'string') {
-          const found = byName.find(x => x.name === s)
-          if (found) idSet.add(String(found._id))
-        } else if (s && s._id) {
-          idSet.add(String(s._id))
-        } else if (typeof s === 'object' && s.id) {
-          idSet.add(String(s.id))
-        } else if (typeof s === 'string' && s.match(/^[a-f0-9]{24}$/)) {
-          idSet.add(s)
-        }
-      }
-      skills = Array.from(idSet)
-    } else {
-      skills = []
-    }
-
-    const update = {
-      fullName,
-      college,
-      graduationYear: graduationYear ? Number(graduationYear) : undefined,
-      major,
-      skills
-    }
-
-    // Generate a unique username from fullName
-    const username = await generateUniqueUsername(fullName || 'student')
-
-  const profileDoc = new StudentProfile({ userId: targetUserId, username, ...update })
-    await profileDoc.save()
-
-    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
-
-    res.status(201).json({ success: true, profile: profileDoc })
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message })
-  }
-}
-
-app.post('/api/profile/student', authMiddleware, handleCreateStudentProfile)
-app.post('/api/profile/student/:userId', authMiddleware, handleCreateStudentProfile)
-
-// Create or update employer profile (protected)
-async function handleCreateEmployerProfile(req, res) {
-  try {
-    const targetUserId = req.params.userId || req.userId
-    if (!targetUserId) return res.status(401).json({ message: 'Unauthorized' })
-    if (req.userId !== targetUserId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
-
-    const { fullName, companyName, companyWebsite } = req.body
-
-    const update = {
-      fullName,
-      companyName,
-      companyWebsite
-    }
-
-    const profileDoc = new EmployerProfile({ userId: targetUserId, ...update })
-    await profileDoc.save()
-
-    await User.findByIdAndUpdate(targetUserId, { hasCompletedOnboarding: true })
-
-    res.status(201).json({ success: true, profile: profileDoc })
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message })
-  }
-}
-
-app.post('/api/profile/employer', authMiddleware, handleCreateEmployerProfile)
-app.post('/api/profile/employer/:userId', authMiddleware, handleCreateEmployerProfile)
-
-// Messaging routes (all protected)
-app.use('/api/messages', authMiddleware, messagesRouter)
-
-// Users search router (protected)
-app.use('/api/users', authMiddleware, usersSearchRouter)
-
-// Profiles public/private visibility endpoints
-app.use('/api/profiles', profilesRouter)
-
-// Public profile endpoints (no auth)
-app.use('/api/profile', publicProfileRouter)
-
-// Events (SSE) router for live updates (optional auth)
-app.use('/api/events', eventsRouter)
-
-// Onboarding role selection - protected
+// Onboarding: set user role
 app.post('/api/onboarding/role', authMiddleware, async (req, res) => {
   try {
-    const { userId, role } = req.body
-    // basic validation
-    if (!userId || !role) return res.status(400).json({ message: 'userId and role are required' })
-    if (!['student', 'employer'].includes(role)) return res.status(400).json({ message: 'Invalid role' })
-
-    // ensure authenticated user matches the provided userId
-    if (!req.userId) return res.status(401).json({ message: 'Unauthorized' })
-    if (req.userId !== userId) return res.status(403).json({ message: 'Forbidden: userId does not match token' })
-
-  // Set role and flags; do NOT set isAdmin here
-  const update = { role, isStudent: role === 'student', isEmployer: role === 'employer' }
-  const user = await User.findByIdAndUpdate(userId, update, { new: true })
+    const { role } = req.body
+    if (!['student', 'employer'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' })
+    }
+    const user = await User.findById(req.userId)
     if (!user) return res.status(404).json({ message: 'User not found' })
-
-    res.json({ success: true, user })
+    if (user.role && user.role !== 'guest') {
+      // allow setting role once
+      return res.status(400).json({ message: 'Role already set' })
+    }
+    user.role = role
+    user.isStudent = role === 'student'
+    user.isEmployer = role === 'employer'
+    await user.save()
+    res.json({ success: true, user: { role: user.role } })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
-// Get current user's profile (student or employer)
+// Protected routes
 app.get('/api/profile/me', authMiddleware, async (req, res) => {
   try {
     const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const user = await User.findById(userId).select('-passwordHash').lean()
+    if (!user) return res.status(404).json({ message: 'User not found' })
 
-  // prefer StudentProfile then EmployerProfile, then AdminProfile
-    let profile = await StudentProfile.findOne({ userId }).populate('skills','name').lean()
-    if (profile) return res.json({ success: true, profile, type: 'student' })
-
-    profile = await EmployerProfile.findOne({ userId }).lean()
-    if (profile) return res.json({ success: true, profile, type: 'employer' })
-
-  profile = await AdminProfile.findOne({ userId }).lean()
-  if (profile) return res.json({ success: true, profile, type: 'admin' })
-
-    return res.status(404).json({ success: false, message: 'Profile not found' })
+    let profile = null
+    if (user.role === 'student') {
+      profile = await StudentProfile.findOne({ userId }).populate('skills').lean()
+    } else if (user.role === 'employer') {
+      profile = await EmployerProfile.findOne({ userId }).lean()
+    } else if (user.role === 'admin') {
+      profile = await AdminProfile.findOne({ userId }).lean()
+    }
+    res.json({ success: true, user, profile })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
-// PATCH update basic profile fields (bio, skills array, companyWebsite etc.)
-app.patch('/api/profile', authMiddleware, async (req, res) => {
+// Use routers for messages, search, public profiles
+app.use('/api/messages', messageRouter)
+app.use('/api/users', usersSearchRouter)
+app.use('/api/profile', publicProfileRouter)
+
+// Student profile create/update
+app.post('/api/profile/student', authMiddleware, async (req, res) => {
   try {
     const userId = req.userId
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' })
+    const user = await User.findById(userId)
+    if (!user || user.role !== 'student') return res.status(403).json({ message: 'Forbidden' })
+    const { username, fullName, headline, location, bio, skills, links, education, experience, visibility } = req.body
+    const update = { username, fullName, headline, location, bio, links, education, experience, visibility }
 
-    // Determine which profile collection exists
-    let profile = await StudentProfile.findOne({ userId })
-    let model = null
-    if (profile) model = StudentProfile
-    else {
-      profile = await EmployerProfile.findOne({ userId })
-      if (profile) model = EmployerProfile
-    }
-    if (!profile) return res.status(404).json({ message: 'Profile not found' })
-
-    // Allowed fields depend on profile type
-  const allowedStudent = ['bio','skills','fullName','major','college','graduationYear','username','profilePictureUrl','location','headline','links','preferences','visibility','experience','education']
-    const allowedEmployer = ['bio','companyWebsite','companyName','fullName']
-    const allowed = model === StudentProfile ? allowedStudent : allowedEmployer
-    const update = {}
-    for (const k of allowed) if (k in req.body) update[k] = req.body[k]
-    if (model === StudentProfile && update.skills) {
-      if (!Array.isArray(update.skills)) update.skills = []
-      else {
-        const input = update.skills
-        const byName = await Skill.find({ name: { $in: input.filter(s => typeof s === 'string') } }).select('_id name').lean()
-        const idSet = new Set()
-        for (const s of input) {
-          if (typeof s === 'string') {
-            const found = byName.find(x => x.name === s)
-            if (found) idSet.add(String(found._id))
-          } else if (s && s._id) {
-            idSet.add(String(s._id))
-          } else if (typeof s === 'object' && s.id) {
-            idSet.add(String(s.id))
-          } else if (typeof s === 'string' && s.match(/^[a-f0-9]{24}$/)) {
-            idSet.add(s)
-          }
+    // Handle skills: assume skills is an array of strings
+    if (Array.isArray(skills)) {
+      const skillIds = []
+      for (const skillName of skills) {
+        const name = (skillName || '').toString().trim()
+        if (!name) continue
+        const nameLower = name.toLowerCase()
+        // Find or create the skill
+        // eslint-disable-next-line no-await-in-loop
+        let skill = await Skill.findOne({ nameLower })
+        if (!skill) {
+          // eslint-disable-next-line no-await-in-loop
+          skill = await new Skill({ name }).save()
         }
-        update.skills = Array.from(idSet)
+        skillIds.push(skill._id)
       }
-    }
-    if ('graduationYear' in update) {
-      const gy = Number(update.graduationYear)
-      if (!Number.isFinite(gy)) delete update.graduationYear
-      else update.graduationYear = gy
+      update.skills = Array.from(new Set(skillIds)) // ensure unique
     }
 
-    let next
-    try {
-      next = await model.findOneAndUpdate({ userId }, { $set: update }, { new: true, runValidators: true })
-    } catch (e) {
-      if (e && e.code === 11000 && String(e.message || '').includes('username')) {
-        return res.status(409).json({ success: false, message: 'Username already taken' })
-      }
-      throw e
+    const profile = await StudentProfile.findOneAndUpdate(
+      { userId },
+      { $set: update, $setOnInsert: { userId } },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, profile })
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.username) {
+      return res.status(409).json({ success: false, message: 'Username is already taken' })
     }
-    // Emit and publish profile update so other systems and SSE clients can react
-    try { eventBus && eventBus.emit && eventBus.emit('profile:updated', { userId, profile: next.toObject ? next.toObject() : next }) } catch(_){}
-    try { if (redisClient && typeof redisClient.publish === 'function') await redisClient.publish('profiles:updates', JSON.stringify({ userId, profile: next.toObject ? next.toObject() : next })) } catch (rerr) { console.warn('Failed to publish profile update to Redis', rerr && rerr.message) }
-    try { await publishMessage(process.env.KAFKA_PROFILE_TOPIC || 'profile-updates', { userId, profile: next.toObject ? next.toObject() : next }) } catch (kerr) { console.warn('Failed to publish profile update to Kafka', kerr && kerr.message) }
-    res.json({ success: true, profile: next })
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Admin version: create student profile
+app.post('/api/profile/student/:userId', adminRequired, async (req, res) => {
+  try {
+    const { userId } = req.params
+    const user = await User.findById(userId)
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    const { username, fullName, headline, location, bio, skills, links, education, experience, visibility } = req.body
+    const update = { username, fullName, headline, location, bio, links, education, experience, visibility }
+
+    if (Array.isArray(skills)) {
+      const skillIds = []
+      for (const skillName of skills) {
+        const name = (skillName || '').toString().trim()
+        if (!name) continue
+        const nameLower = name.toLowerCase()
+        // eslint-disable-next-line no-await-in-loop
+        let skill = await Skill.findOne({ nameLower })
+        if (!skill) {
+          // eslint-disable-next-line no-await-in-loop
+          skill = await new Skill({ name }).save()
+        }
+        skillIds.push(skill._id)
+      }
+      update.skills = Array.from(new Set(skillIds))
+    }
+
+    const profile = await StudentProfile.findOneAndUpdate(
+      { userId },
+      { $set: update, $setOnInsert: { userId } },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, profile })
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.username) {
+      return res.status(409).json({ success: false, message: 'Username is already taken' })
+    }
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Employer profile create/update
+app.post('/api/profile/employer', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId
+    const user = await User.findById(userId)
+    if (!user || user.role !== 'employer') return res.status(403).json({ message: 'Forbidden' })
+    const { companyName, companyWebsite, industry, location, size, about, contact, social } = req.body
+    const update = { companyName, companyWebsite, industry, location, size, about, contact, social }
+    const profile = await EmployerProfile.findOneAndUpdate(
+      { userId },
+      { $set: update, $setOnInsert: { userId } },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, profile })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
-// Resume & video metadata storage (no file storage yet) - simple stub
-// ---- Resume (GridFS) real upload/download ----
-app.post('/api/profile/resume', authMiddleware, upload.single('file'), async (req, res) => {
+// Admin version: create employer profile
+app.post('/api/profile/employer/:userId', adminRequired, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: 'file required' })
+    const { userId } = req.params
+    const user = await User.findById(userId)
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    const { companyName, companyWebsite, industry, location, size, about, contact, social } = req.body
+    const update = { companyName, companyWebsite, industry, location, size, about, contact, social }
+    const profile = await EmployerProfile.findOneAndUpdate(
+      { userId },
+      { $set: update, $setOnInsert: { userId } },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Student profile PATCH (generic, for links, skills, etc)
+app.patch('/api/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId)
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    if (user.role !== 'student') return res.status(403).json({ message: 'Forbidden' })
+    const { skills, links, education, experience, ...rest } = req.body
+    const update = rest
+    if (skills) {
+      const skillIds = []
+      for (const skillName of skills) {
+        const name = (skillName || '').toString().trim()
+        if (!name) continue
+        const nameLower = name.toLowerCase()
+        // eslint-disable-next-line no-await-in-loop
+        let skill = await Skill.findOne({ nameLower })
+        if (!skill) {
+          // eslint-disable-next-line no-await-in-loop
+          skill = await new Skill({ name }).save()
+        }
+        skillIds.push(skill._id)
+      }
+      update.skills = Array.from(new Set(skillIds))
+    }
+    if (links) update.links = links
+    if (education) update.education = education
+    if (experience) update.experience = experience
+
+    const profile = await StudentProfile.findOneAndUpdate(
+      { userId: req.userId },
+      { $set: update },
+      { new: true, upsert: true }
+    )
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// Student profile visibility settings
+app.get('/api/profiles/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params
+    const profile = await StudentProfile.findOne({ userId }).select('visibility').lean()
+    if (!profile) return res.status(404).json({ message: 'Profile not found' })
+    res.json({ success: true, visibility: profile.visibility })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.patch('/api/profiles/:userId/visibility', adminRequired, async (req, res) => {
+  try {
+    const { userId } = req.params
+    const { visibility } = req.body
+    const profile = await StudentProfile.findOneAndUpdate(
+      { userId },
+      { $set: { visibility } },
+      { new: true }
+    )
+    if (!profile) return res.status(404).json({ message: 'Profile not found' })
+    res.json({ success: true, visibility: profile.visibility })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+app.patch('/api/profiles/me', authMiddleware, async (req, res) => {
+  try {
+    const { visibility } = req.body
+    const profile = await StudentProfile.findOneAndUpdate(
+      { userId: req.userId },
+      { $set: { visibility } },
+      { new: true }
+    )
+    if (!profile) return res.status(404).json({ message: 'Profile not found' })
+    res.json({ success: true, visibility: profile.visibility })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GridFS file uploads (resume, avatar)
+// Upload resume
+app.post('/api/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'resume file is required' })
     const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'resumes' })
+    // Use native stream from uploaded buffer
     const { buffer, originalname, mimetype } = req.file
     const stream = bucket.openUploadStream(originalname, { contentType: mimetype })
     stream.end(buffer)
@@ -455,33 +374,7 @@ app.post('/api/profile/resume', authMiddleware, upload.single('file'), async (re
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-app.post('/api/profile/video', authMiddleware, async (req, res) => {
-  try {
-    // Keep as metadata-only stub for now
-    const { name, size, durationSec } = req.body || {}
-    res.status(201).json({ success: true, video: { name, size, durationSec, uploadedAt: new Date() } })
-  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
-})
-
-app.get('/api/profile/media', authMiddleware, async (req, res) => {
-  try {
-    const prof = await StudentProfile.findOne({ userId: req.userId }).select('resumeFilename resumeUploadedAt resumeFileId resumeContentType avatarFileId avatarFilename avatarContentType avatarUploadedAt').lean()
-    const resume = prof && prof.resumeFileId ? {
-      name: prof.resumeFilename,
-      uploadedAt: prof.resumeUploadedAt,
-      fileId: prof.resumeFileId,
-      contentType: prof.resumeContentType
-    } : null
-    const avatar = prof && prof.avatarFileId ? {
-      name: prof.avatarFilename,
-      uploadedAt: prof.avatarUploadedAt,
-      fileId: prof.avatarFileId,
-      contentType: prof.avatarContentType
-    } : null
-    res.json({ success: true, resume, avatar, video: null })
-  } catch (e) { res.status(500).json({ success: false, message: e.message }) }
-})
-
+// Download resume
 app.get('/api/profile/resume/download', authMiddleware, async (req, res) => {
   try {
     const prof = await StudentProfile.findOne({ userId: req.userId }).select('resumeFileId resumeFilename resumeContentType').lean()
@@ -489,16 +382,16 @@ app.get('/api/profile/resume/download', authMiddleware, async (req, res) => {
     const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'resumes' })
     const stream = bucket.openDownloadStream(new mongoose.Types.ObjectId(String(prof.resumeFileId)))
     res.setHeader('Content-Type', prof.resumeContentType || 'application/pdf')
-    res.setHeader('Content-Disposition', `inline; filename="${prof.resumeFilename || 'resume.pdf'}"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${prof.resumeFilename || 'resume.pdf'}"`)
     stream.on('error', () => res.status(404).end())
     stream.pipe(res)
   } catch (e) { res.status(500).json({ success: false, message: e.message }) }
 })
 
-// Avatar (Profile photo) upload/download via GridFS
-app.post('/api/profile/avatar', authMiddleware, upload.single('file'), async (req, res) => {
+// Upload avatar
+app.post('/api/profile/avatar', authMiddleware, upload.single('avatar'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: 'file required' })
+    if (!req.file) return res.status(400).json({ message: 'avatar file is required' })
     const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'avatars' })
     const { buffer, originalname, mimetype } = req.file
     const stream = bucket.openUploadStream(originalname, { contentType: mimetype })
@@ -1462,6 +1355,19 @@ async function startServer() {
       console.warn('Index cleanup skipped:', ixErr.message)
     }
 
+    // 3. (FIX) THIS IS WHERE WE ADD THE REACT APP
+    
+    // --- ADD THIS CODE ---
+    // Serve static files from the React build directory
+    app.use(express.static(path.join(__dirname, 'dist')));
+    
+    // Handle all other routes by sending the React app
+    // This must be the LAST route
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    });
+    // --- END OF CODE TO ADD ---
+
     app.listen(port, () => {
       console.log(`Server listening on http://localhost:${port}`)
     })
@@ -1531,5 +1437,3 @@ async function startServer() {
 }
 
 startServer()
-
-export default app
