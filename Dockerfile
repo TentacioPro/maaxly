@@ -1,44 +1,39 @@
-# --- STAGE 1: Build the React Frontend ---
+# Multi-stage: Builder for deps + frontend build, then runtime
 FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Copy all package.json and package-lock.json files
-COPY package.json package-lock.json* ./
-COPY server/package.json server/
-COPY src/package.json src/
-# (Add any other package.json files if they exist)
+# Copy package files
+COPY package*.json ./
 
-# Install all dependencies for the entire monorepo
-RUN npm install
+# Install all deps (prod + dev for build)
+RUN npm ci
 
-# Copy the rest of the source code
-COPY . .
-
-# Build the frontend (Vite)
+# Build React frontend (Vite outputs to /dist)
 RUN npm run build
 
-# --- STAGE 2: Build the Production Server ---
-FROM node:20-alpine AS runner
+# Production stage: Smaller image, only prod deps
+FROM node:20-alpine AS runtime
+
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Copy package files for prod install
+COPY package*.json ./
 
-# Copy only the production dependencies' package.json files
-COPY package.json package-lock.json* ./
-COPY server/package.json server/
+# Install only prod deps (skips dev like vite, eslint)
+RUN npm ci --only=production && npm cache clean --force
 
-# Install *only* the production dependencies for the server
-RUN npm install --production
+# Copy server code + built frontend
+COPY server ./server
+COPY dist ./dist  # Vite build output; adjust if your vite.config.js uses 'build.outDir'
+COPY .env* ./
 
-# Copy the server source code
-COPY server/ ./server/
-
-# Copy the built React app from the 'builder' stage
-# Assumes Express serves static files from 'server/dist'
-COPY --from=builder /app/dist ./server/dist
-
-# Expose the port your server runs on (PORT 4000)
+# Expose port (per your Nginx proxy)
 EXPOSE 4000
 
-# The command to start your server (server/index.js)
-CMD [ "node", "server/index.js" ]
+# Health check (optional, for resilience)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node server/health.js || exit 1  # Add a simple /health endpoint in server if needed
+
+# Start backend (serves API + static /dist)
+CMD ["npm", "start"]
