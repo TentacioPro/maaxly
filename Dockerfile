@@ -1,29 +1,21 @@
-# Multi-stage: Builder for deps + frontend build, then runtime
+# --- STAGE 1: Build the React Frontend ---
 FROM node:20-alpine AS builder
-
 WORKDIR /app
 
-# Copy package files for deps install (cached layer)
+# Copy all package files
 COPY package*.json ./
 
-# Install all deps (prod + dev for build)
+# Install all dependencies
 RUN npm ci
 
-# Copy source for Vite build (index.html + src/ + config; targeted)
-COPY index.html ./
+# Copy the rest of the source code
+COPY . .
 
-# Tailwind config for theming (per blueprint)
-COPY tailwind.config.js ./
-
-COPY src ./src
-COPY vite.config.js ./
-
-# Build React frontend (Vite outputs to /dist)
+# Build the static React app
 RUN npm run build
 
-# Production stage: Smaller image, only prod deps
+# --- STAGE 2: Create the Production Server ---
 FROM node:20-alpine AS runtime
-
 WORKDIR /app
 
 # Copy package files for prod install
@@ -32,11 +24,11 @@ COPY package*.json ./
 # Install only prod deps (skips dev like vite, eslint)
 RUN npm ci --only=production && npm cache clean --force
 
-# Copy server code + built frontend (from builder stage)
-COPY server ./server
-COPY --from=builder /app/dist ./dist
+# (FIX) This now copies the entire server directory AND all its sub-folders
+COPY server/ ./server/
 
-COPY .env* ./
+# (FIX) This copies the built frontend from the builder stage
+COPY --from=builder /app/dist ./server/dist
 
 # Expose port (per your Nginx proxy)
 EXPOSE 4000
@@ -46,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node server/health.js || exit 1  # Add /health in index.js if needed
 
 # Start backend (serves API + static /dist)
-CMD ["npm", "start"]
+CMD ["node", "server/index.js"]
