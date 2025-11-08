@@ -27,6 +27,8 @@ RUN npm ci --only=production && npm cache clean --force
 # (FIX) This now copies the entire server directory AND all its sub-folders
 COPY server/ ./server/
 
+RUN echo ">>> /app/server contents:" && ls -R /app/server || true
+
 # (FIX) This copies the built frontend from the builder stage
 COPY --from=builder /app/dist ./server/dist
 

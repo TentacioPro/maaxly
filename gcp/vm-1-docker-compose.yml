@@ -3,7 +3,7 @@ services:
   # 1. The NEW Frontend Container
   maaxly-frontend:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile.frontend
     container_name: maaxly-frontend
     restart: unless-stopped
@@ -13,7 +13,7 @@ services:
   # 2. The (unchanged) Backend API Container
   maaxly-app:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     container_name: maaxly-app
     restart: unless-stopped
