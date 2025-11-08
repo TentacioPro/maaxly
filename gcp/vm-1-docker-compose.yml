@@ -1,5 +1,16 @@
-version: '3.8'
+# This is the new, correct docker-compose.yml for vm-1-app
 services:
+  # 1. The NEW Frontend Container
+  maaxly-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: maaxly-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80" # We expose port 80 (nginx) to the host as 8080 for Nginx Proxy Manager
+
+  # 2. The (unchanged) Backend API Container
   maaxly-app:
     build:
       context: .
@@ -7,22 +18,27 @@ services:
     container_name: maaxly-app
     restart: unless-stopped
     environment:
-      # 🚨 UPDATE VM_2_INTERNAL_IP with the actual internal IP of vm-2-data
       - MONGODB_URI=mongodb://10.128.0.2:27017/maaxly-db
       - REDIS_URL=redis://10.128.0.2:6379
-      - JWT_SECRET=H+cpMJchWXEYRf6sB/6XqrOkgqPEuPIIHaziSfLFmXzcKndqtW+vbzPgGiAvAY2I # 🚨 UPDATE THIS
+      - JWT_SECRET=H+cpMJchWXEYRf6sB/6XqrOkgqPEuPIIHaziSfLFmXzcKndqtW+vbzPgGiAvAY2I
       - PORT=4000
-      - CORS_ORIGIN=https://maaxly-trial.duckdns.org # 🚨 UPDATE THIS
-    depends_on:
-      - npm-proxy
+      - CORS_ORIGIN=https://maaxly-trial.duckdns.org
+    # No ports are exposed. It talks to the frontend over the internal Docker network.
 
+  # 3. The (unchanged) Nginx Proxy Manager
   npm-proxy:
     image: 'jc21/nginx-proxy-manager:latest'
     container_name: npm-proxy
     restart: unless-stopped
-    ports: ["80:80", "443:443", "81:81"]
-    volumes: ["npm_data:/data", "npm_letsencrypt:/etc/letsencrypt"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - "npm_data:/data"
+      - "npm_letsencrypt:/etc/letsencrypt"
 
+  # 4. The (unchanged) Portainer
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
