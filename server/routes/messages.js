@@ -4,7 +4,7 @@ import Conversation from '../models/Conversation.js'
 import Message from '../models/Message.js'
 import User from '../models/User.js'
 import bus from '../lib/event-bus.js'
-import { publishMessage } from '../kafka/producer.js'
+import { publishMessage, KAFKA_ENABLED } from '../kafka/producer.js'
 import redisClient from '../redis/client.js'
 
 // This file expects authMiddleware to be passed in when mounting
@@ -167,24 +167,62 @@ router.post('/', async (req, res) => {
       participants: conv.participants.map(p => String(p.user))
     }
 
+    if (!KAFKA_ENABLED) {
+      // Kafka disabled: persist directly to MongoDB and notify via Redis asynchronously
+      const msg = new Message({ _id: messageId, conversation: conversationId, sender: me, text: text || '', attachments: Array.isArray(attachments) ? attachments : [] })
+      await msg.save()
+      conv.lastMessage = msg._id
+      await conv.save()
+      const populated = await msg.populate('sender', 'email')
+
+      // Fire-and-forget Redis notifications and local event emit so response isn't delayed by Redis
+      ;(async () => {
+        try {
+          for (const uid of conv.participants.map(p => String(p.user))) {
+            if (String(uid) === String(me)) continue // do not notify sender
+            try {
+              await redisClient.lpush(`messages:${uid}`, JSON.stringify({ messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt }))
+            } catch (e) { console.warn('Redis LPUSH failed for messages list', e && e.message) }
+            try {
+              await redisClient.hincrby(`unread:${uid}`, String(conversationId), 1)
+            } catch (e) { console.warn('Redis HINCRBY failed for unread counter', e && e.message) }
+            try {
+              await redisClient.publish(`inbox:${uid}`, JSON.stringify({ type: 'message', message: { messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt } }))
+            } catch (e) { console.warn('Redis PUBLISH failed for inbox channel', e && e.message) }
+          }
+          try { bus.emit('message:created', { conversationId: String(conv._id), messageId: String(msg._id), sender: String(me), participants: conv.participants.map(p => String(p.user)) }) } catch (e) { console.warn('bus.emit failed', e && e.message) }
+        } catch (outer) {
+          console.warn('Async notify failed', outer && outer.message)
+        }
+      })()
+
+      return res.status(201).json({ success: true, message: populated })
+    }
+
     try {
       await publishMessage(process.env.KAFKA_TOPIC || 'chat-messages', payload)
     } catch (kerr) {
       console.warn('Failed to publish to Kafka, falling back to Mongo write', kerr && kerr.message)
-      // fallback: write directly
-  const msg = new Message({ _id: messageId, conversation: conversationId, sender: me, text: text || '', attachments: Array.isArray(attachments) ? attachments : [] })
+      // fallback: write directly and notify asynchronously
+      const msg = new Message({ _id: messageId, conversation: conversationId, sender: me, text: text || '', attachments: Array.isArray(attachments) ? attachments : [] })
       await msg.save()
       conv.lastMessage = msg._id
       await conv.save()
-      // push to redis and emit bus for compatibility (notify recipients only)
-      for (const uid of conv.participants.map(p => String(p.user))) {
-        if (String(uid) === String(me)) continue // do not notify sender
-        await redisClient.lpush(`messages:${uid}`, JSON.stringify({ messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt }))
-        await redisClient.hincrby(`unread:${uid}`, String(conversationId), 1)
-        await redisClient.publish(`inbox:${uid}`, JSON.stringify({ type: 'message', message: { messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt } }))
-      }
       const populated = await msg.populate('sender', 'email')
-      bus.emit('message:created', { conversationId: String(conv._id), messageId: String(msg._id), sender: String(me), participants: conv.participants.map(p => String(p.user)) })
+
+      // Async notify
+      ;(async () => {
+        try {
+          for (const uid of conv.participants.map(p => String(p.user))) {
+            if (String(uid) === String(me)) continue
+            try { await redisClient.lpush(`messages:${uid}`, JSON.stringify({ messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt })) } catch (e) { console.warn('Redis LPUSH failed in fallback', e && e.message) }
+            try { await redisClient.hincrby(`unread:${uid}`, String(conversationId), 1) } catch (e) { console.warn('Redis HINCRBY failed in fallback', e && e.message) }
+            try { await redisClient.publish(`inbox:${uid}`, JSON.stringify({ type: 'message', message: { messageId: String(msg._id), conversationId: String(conversationId), sender: String(me), text: msg.text, ts: msg.createdAt } })) } catch (e) { console.warn('Redis PUBLISH failed in fallback', e && e.message) }
+          }
+          try { bus.emit('message:created', { conversationId: String(conv._id), messageId: String(msg._id), sender: String(me), participants: conv.participants.map(p => String(p.user)) }) } catch (e) { console.warn('bus.emit failed in fallback', e && e.message) }
+        } catch (outer) { console.warn('Async notify failed in fallback', outer && outer.message) }
+      })()
+
       return res.status(201).json({ success: true, message: populated })
     }
 

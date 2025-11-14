@@ -38,6 +38,8 @@ services:
       - KAFKA_CLUSTERS_0_KRAFT_MODE=true
     depends_on:
       - kafka
+    profiles:
+      - dev
 
   redis:
     image: redis:7-alpine
@@ -57,6 +59,39 @@ services:
       - redisinsight_data:/data
     depends_on:
       - redis
+    profiles:
+      - dev
+
+  # MongoDB for app data (dev/prod). Credentials can be overridden via .env
+  mongodb:
+    image: mongo:6.0
+    container_name: maaxly-mongodb
+    ports:
+      - "27017:27017"  # expose for host access in dev
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-mvp-db}
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+
+  # Mongo Express (dev UI only)
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: maaxly-mongo-express
+    ports:
+      - "8082:8081"
+    environment:
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      - mongodb
+    profiles:
+      - dev
 
 volumes:
   kafka_data:
@@ -65,3 +100,16 @@ volumes:
     driver: local
   redisinsight_data:
     driver: local
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local
+
+###
+# Usage notes (env for server/scripts)
+# - Inside containers: use internal URI
+#     MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-maaxly}:${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}@mongodb:27017/${MONGODB_DB:-mvp-db}?authSource=admin
+# - From host (npm run server): use host-mapped URI
+#     MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-maaxly}:${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}@localhost:27017/${MONGODB_DB:-mvp-db}?authSource=admin
+# - For prod, set strong creds via .env and avoid starting dev-only profiles:
+#     docker compose --profile prod up -d  (dev-only UIs are excluded)

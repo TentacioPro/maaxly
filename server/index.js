@@ -27,8 +27,21 @@ import { GridFSBucket } from 'mongodb'
 
 const app = express()
 const port = process.env.PORT || 4000
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
+// Mongo connection: allow automatic docker auth URI construction if root creds provided
+let mongoUri = process.env.MONGODB_URI
 const dbName = process.env.MONGODB_DB || 'mvp-db'
+if (!mongoUri) {
+  const rootUser = process.env.MONGO_INITDB_ROOT_USERNAME
+  const rootPass = process.env.MONGO_INITDB_ROOT_PASSWORD
+  const host = process.env.MONGODB_HOST || 'localhost'
+  if (rootUser && rootPass) {
+    mongoUri = `mongodb://${rootUser}:${rootPass}@${host}:27017/${dbName}?authSource=admin`
+    console.log('[mongo] constructed auth URI from root env vars')
+  } else {
+    mongoUri = 'mongodb://localhost:27017'
+    console.log('[mongo] using unauthenticated localhost URI (no root creds found)')
+  }
+}
 // Shared multer instance for multipart uploads (resume, attachments)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }) // 25MB
 
