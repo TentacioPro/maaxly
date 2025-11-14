@@ -68,6 +68,8 @@ services:
     container_name: maaxly-mongodb
     ports:
       - "27017:27017"  # expose for host access in dev
+    env_file:
+      - .env.prod
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
@@ -99,18 +101,20 @@ services:
     container_name: maaxly-backend
     working_dir: /app
     command: sh -lc "npm install --omit=dev && npm start"
+    env_file:
+      - .env.prod
     environment:
       PORT: 4000
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      MONGODB_DB: ${MONGODB_DB:-mvp-db}
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
+      # Directly use the same variables as the mongodb service
       MONGODB_HOST: mongodb
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGODB_DB: ${MONGODB_DB}
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:29092
       KAFKAJS_NO_PARTITIONER_WARNING: "1"
-      # Use a strong random value in .env for production
-      JWT_SECRET: ${JWT_SECRET:-change-me-dev}
+      JWT_SECRET: ${JWT_SECRET}
     volumes:
       - ./:/app
       - backend_node_modules:/app/node_modules
@@ -125,10 +129,13 @@ services:
       - dev
       - prod
 
-  # Frontend (Vite dev server)
+  # Frontend (Vite dev server OR production static server)
   frontend:
+    # The 'dev' profile uses the Vite dev server with live reload
+    profiles:
+      - dev
     image: node:20-alpine
-    container_name: maaxly-frontend
+    container_name: maaxly-frontend-dev
     working_dir: /app
     command: sh -lc "npm install && npm run dev -- --host 0.0.0.0"
     environment:
@@ -143,17 +150,31 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  # Production frontend: builds and serves static files using Nginx
+  frontend-prod:
+    # The 'prod' profile builds a static site and serves it with Nginx
     profiles:
-      - dev
+      - prod
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: maaxly-frontend-prod
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
 
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:latest
     container_name: maaxly-nginx-proxy-manager
     ports:
-      - "${NPM_HTTP_PORT:-80}:80"
+      - "${NPM_HTTP_PORT:-8088}:80"
       - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
-      - "${NPM_HTTPS_PORT:-443}:443"
+      - "${NPM_HTTPS_PORT:-8443}:443"
     environment:
       DISABLE_IPV6: "true"
     volumes:

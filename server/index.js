@@ -48,7 +48,27 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 app.use(express.json())
 // Enable CORS for the frontend during development
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
-app.use(cors({ origin: corsOrigin }))
+const isProd = process.env.NODE_ENV === 'production'
+
+// In production, we don't need CORS if the frontend is served from the same origin.
+// However, if the frontend is on a different domain/subdomain, configure CORS_ORIGIN.
+const corsOptions = isProd
+  ? { origin: process.env.CORS_ORIGIN || false } // Disable if not set
+  : { origin: corsOrigin };
+
+app.use(cors(corsOptions));
+
+// Serve static frontend files in production
+if (isProd) {
+  // The 'public' directory should contain the built frontend assets (dist folder)
+  app.use(express.static('public'));
+
+  // For SPAs, send all other requests to the index.html
+  app.get('*', (req, res) => {
+    res.sendFile('index.html', { root: 'public' });
+  });
+}
+
 
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running' })

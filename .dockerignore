@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Dependencies - these should be installed inside the container
+node_modules
+
+# Build artifacts from local development
+dist
+build
+.vite
+
+# Local environment files - pass these at runtime, don't build into the image
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+npm-debug.log
+*.log
+
+# OS and IDE specific
+.vscode
+.idea
+.DS_Store
+
+# Test and coverage reports
+coverage
+
+# Other large directories not needed for the application build
+/backups
+/golden-repo
+/tweakcn-components
+/docs
