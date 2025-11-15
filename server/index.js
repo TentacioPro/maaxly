@@ -63,8 +63,9 @@ if (isProd) {
   // The 'public' directory should contain the built frontend assets (dist folder)
   app.use(express.static('public'));
 
-  // For SPAs, send all other requests to the index.html
-  app.get('*', (req, res) => {
+  // For SPAs, send non-API requests to index.html
+  // Use a regex to avoid path-to-regexp '*' issues and exclude /api/*
+  app.get(/^\/((?!api\/).)*$/, (req, res) => {
     res.sendFile('index.html', { root: 'public' });
   });
 }
