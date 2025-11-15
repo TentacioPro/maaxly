@@ -219,38 +219,51 @@ services:
       - prod
 
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
-  # Uncomment when you want to manage HTTPS / domains via NPM.
-  # nginx-proxy-manager:
-  #   image: jc21/nginx-proxy-manager:latest
-  #   container_name: maaxly-nginx-proxy-manager
-  #   ports:
-  #     - "${NPM_HTTP_PORT:-8088}:80"
-  #     - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
-  #     - "${NPM_HTTPS_PORT:-8443}:443"
-  #   environment:
-  #     DISABLE_IPV6: "true"
-  #   volumes:
-  #     - npm_data:/data
-  #     - npm_letsencrypt:/etc/letsencrypt
-  #   depends_on:
-  #     - backend
-  #   profiles:
-  #     - prod
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: maaxly-nginx-proxy-manager
+    ports:
+      - "${NPM_HTTP_PORT:-8088}:80"
+      - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
+      - "${NPM_HTTPS_PORT:-8443}:443"
+    environment:
+      DISABLE_IPV6: "true"
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    depends_on:
+      - backend
+      - frontend-prod
+    profiles:
+      - prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # DuckDNS updater (prod)
-  # duckdns:
-  #   image: lscr.io/linuxserver/duckdns:latest
-  #   container_name: maaxly-duckdns
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=${TZ:-Etc/UTC}
-  #     - SUBDOMAINS=${DUCKDNS_SUBDOMAINS:-your-subdomain}
-  #     - TOKEN=${DUCKDNS_TOKEN:-CHANGEME}
-  #     - LOG_FILE=true
-  #   restart: unless-stopped
-  #   profiles:
-  #     - prod
+  duckdns:
+    image: lscr.io/linuxserver/duckdns:latest
+    container_name: maaxly-duckdns
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-Etc/UTC}
+      - SUBDOMAINS=${DUCKDNS_SUBDOMAINS:-your-subdomain}
+      - TOKEN=${DUCKDNS_TOKEN:-CHANGEME}
+      - LOG_FILE=true
+      - VERBOSITY=1
+    volumes:
+      - ./logs/duckdns:/config/log
+    restart: unless-stopped
+    profiles:
+      - prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Nightly backups of Kafka, Redis (volumes) and Mongo (mongodump)
   backup:
