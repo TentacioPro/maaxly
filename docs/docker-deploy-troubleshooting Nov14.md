@@ -197,7 +197,165 @@ This log captures the key Docker build/run issues encountered, their root causes
 ---
 
 ## Append your own notes below
-- 
+
+### Nov 15, 2024 - Authentication & Routing Issues Resolution
+
+#### Issue: nginx 404 errors on API calls
+- **Symptom:** Frontend making API calls to `/api/*` routes getting 404 responses
+- **Root Cause:** Trailing slash in nginx proxy_pass directive causing path rewriting issues
+- **Fix Applied:** 
+  ```nginx
+  # Changed from:
+  proxy_pass http://backend:4000/;
+  # To:
+  proxy_pass http://backend:4000;
+  ```
+- **File Modified:** `nginx.prod.conf`
+- **Status:** Resolved ✅
+
+#### Issue: /api/profile/me endpoint flooding 404 requests  
+- **Symptom:** Unauthenticated users accessing profile pages, causing excessive 404 API calls
+- **Root Cause:** Missing authentication guards on React routes - users could navigate to profile pages without being logged in
+- **Fix Applied:** Added Protected component wrapper to sensitive routes
+- **File Modified:** `src/App.jsx`
+- **Code Changes:**
+  ```jsx
+  // Added Protected wrapper to routes:
+  <Route path="/profile" element={<Protected><Profile /></Protected>} />
+  <Route path="/create-profile/student" element={<Protected><CreateProfile userType="student" /></Protected>} />
+  <Route path="/create-profile/employer" element={<Protected><CreateProfile userType="employer" /></Protected>} />
+  ```
+- **Status:** Resolved ✅
+
+#### Issue: Kafka connectivity health checks
+- **Symptom:** Backend starting before Kafka broker ready, causing connection errors
+- **Root Cause:** Missing health checks and service dependencies in Docker Compose
+- **Fix Applied:** Added simplified Kafka health check using netcat
+- **File Modified:** `docker-compose.kafka.yml`
+- **Code Changes:**
+  ```yaml
+  kafka:
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  ```
+- **Status:** Resolved ✅
+
+#### Issue: nginx-proxy-manager and duckdns service enablement
+- **Symptom:** Services commented out in Docker Compose, needed for SSL and dynamic DNS
+- **Root Cause:** Services were disabled to avoid port conflicts during development
+- **Fix Applied:** Uncommented and configured nginx-proxy-manager and duckdns services
+- **File Modified:** `docker-compose.kafka.yml`
+- **Configuration Added:**
+  ```yaml
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: maaxly-npm
+    ports:
+      - "80:80"
+      - "443:443" 
+      - "81:81"
+    # ... rest of config
+  
+  duckdns:
+    image: ghcr.io/linuxserver/duckdns
+    container_name: maaxly-duckdns
+    environment:
+      - SUBDOMAINS=maaxly-prod-mvp
+      - TOKEN=${DUCKDNS_TOKEN}
+    # ... rest of config
+  ```
+- **Status:** Resolved ✅
+
+#### Docker Rebuild Process Clarification
+- **Question:** Do Docker containers automatically update when code changes are pushed to git?
+- **Answer:** No, Docker containers use cached images and do not automatically pull new code changes
+- **Required Process:**
+  1. Make code changes and commit to git
+  2. Rebuild Docker images: `docker compose build --no-cache [service-name]`
+  3. Recreate containers: `docker compose up -d [service-name] --force-recreate`
+- **Example Commands:**
+  ```powershell
+  # Rebuild frontend after code changes
+  docker compose build --no-cache frontend-prod
+  docker compose up -d frontend-prod --force-recreate
+  
+  # Rebuild backend after code changes  
+  docker compose build --no-cache backend
+  docker compose up -d backend --force-recreate
+  ```
+- **Status:** Process Documented ✅
+
+#### Git Branch Management
+- **Created:** New branch `gcp-deploy-nov15` based on `gcp-deploy-300`
+- **Commands Used:**
+  ```powershell
+  git checkout -b gcp-deploy-nov15
+  git push -u origin gcp-deploy-nov15
+  ```
+- **Purpose:** Isolate Nov 15 deployment work from previous attempts
+- **Status:** Complete ✅
+
+#### SSL Setup with Let's Encrypt (Pending)
+- **Next Step:** Configure SSL certificate through Nginx Proxy Manager UI
+- **Access:** http://localhost:81 (admin interface)
+- **Domain:** maaxly-prod-mvp.duckdns.org
+- **Process:** Add proxy host pointing to frontend-prod:80, enable SSL with Let's Encrypt
+- **Status:** Ready for configuration ⏳
+
+#### Environment Configuration Updates
+- **File:** `.env.prod`
+- **Added Variables:**
+  ```env
+  # DuckDNS Configuration
+  DUCKDNS_TOKEN=your-token-here
+  DUCKDNS_SUBDOMAINS=maaxly-prod-mvp
+  
+  # Nginx Proxy Manager
+  NPM_PORT_HTTP=80
+  NPM_PORT_HTTPS=443
+  NPM_PORT_ADMIN=81
+  ```
+- **Status:** Configured ✅
+
+#### IP Detection Scripts Created
+- **PowerShell Version:** `scripts/get-public-ip.ps1`
+- **Bash Version:** `scripts/get-public-ip.sh`
+- **Purpose:** Detect public IP for manual DuckDNS updates if needed
+- **Usage:** Automated IP detection for deployment verification
+- **Status:** Created ✅
+
+#### Verification Commands
+- **API Health Check:**
+  ```powershell
+  curl http://localhost:8080/api/test
+  # Expected: {"success":true,"message":"API test OK","database":"maaxly_prod_db"}
+  ```
+- **Service Status:**
+  ```powershell
+  docker compose ps
+  ```
+- **Container Logs:**
+  ```powershell
+  docker logs -f maaxly-backend --tail 50
+  docker logs -f maaxly-frontend-prod --tail 50
+  ```
+
+#### Key Lessons Learned
+1. **Authentication Guards Critical:** Frontend routes must be protected to prevent unauthenticated API flooding
+2. **nginx proxy_pass Trailing Slash:** Extra slash causes path rewriting issues - remove it
+3. **Docker Rebuild Required:** Code changes require explicit image rebuild and container recreation
+4. **Health Checks Essential:** Service dependencies prevent startup race conditions
+5. **Environment Isolation:** Separate branches and databases for different deployment attempts
+
+#### Outstanding Tasks
+- [ ] Complete SSL setup through NPM UI (http://localhost:81)
+- [ ] Test end-to-end authentication flow 
+- [ ] Verify no more 404 floods in logs
+- [ ] Configure router port forwarding for external access
+- [ ] Monitor system performance under load
 
 ---
 
