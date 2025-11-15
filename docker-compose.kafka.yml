@@ -59,26 +59,33 @@ services:
       - redisinsight_data:/data
     depends_on:
       - redis
+    # UI available in both dev & prod
     profiles:
       - dev
+      - prod
 
-  # MongoDB for app data (dev/prod). Credentials can be overridden via .env
+  # MongoDB for app data (dev/prod).
   mongodb:
     image: mongo:6.0
     container_name: maaxly-mongodb
     ports:
-      - "27017:27017"  # expose for host access in dev
-    env_file:
-      - .env.prod
+      - "27017:27017"  # expose for host access in dev (you can remove in real prod)
     environment:
+      # Root user used only for initial setup / admin
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
-      MONGO_INITDB_DATABASE: ${MONGODB_DB:-mvp-db}
+      # Default app DB name (same everywhere unless overridden via env file)
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-maaxly_prod_db}
     volumes:
       - mongo_data:/data/db
       - mongo_config:/data/configdb
+    healthcheck:
+      test: ["CMD-SHELL","mongosh --eval 'db.adminCommand({ping:1})' --quiet || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # Mongo Express (dev UI only)
+  # Mongo Express (UI)
   mongo-express:
     image: mongo-express:1.0.2
     container_name: maaxly-mongo-express
@@ -92,46 +99,45 @@ services:
       ME_CONFIG_BASICAUTH: "false"
     depends_on:
       - mongodb
+    # UI available in both dev & prod
     profiles:
       - dev
+      - prod
 
-  # Backend API (Node.js server)
+  # Backend API (Node.js server) - now built from Dockerfile.backend
   backend:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     container_name: maaxly-backend
-    working_dir: /app
-    command: sh -lc "npm install --omit=dev && npm start"
-    env_file:
-      - .env.prod
     environment:
       PORT: 4000
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      # Directly use the same variables as the mongodb service
+      # Internal host for Mongo (used if your code builds a URI from host/db)
       MONGODB_HOST: mongodb
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-      MONGODB_DB: ${MONGODB_DB}
+      # Single source of truth for DB connection
+      MONGODB_DB: ${MONGODB_DB:-maaxly_prod_db}
+      MONGODB_URI: ${MONGODB_URI}
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:29092
       KAFKAJS_NO_PARTITIONER_WARNING: "1"
       JWT_SECRET: ${JWT_SECRET}
-    volumes:
-      - ./:/app
-      - backend_node_modules:/app/node_modules
     ports:
       - "4000:4000"
     depends_on:
-      - mongodb
-      - redis
-      - kafka
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
     restart: unless-stopped
     profiles:
       - dev
       - prod
 
-  # Frontend (Vite dev server OR production static server)
+  # Frontend (Vite dev server)
   frontend:
-    # The 'dev' profile uses the Vite dev server with live reload
     profiles:
       - dev
     image: node:20-alpine
@@ -153,12 +159,13 @@ services:
 
   # Production frontend: builds and serves static files using Nginx
   frontend-prod:
-    # The 'prod' profile builds a static site and serves it with Nginx
     profiles:
       - prod
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
     container_name: maaxly-frontend-prod
     ports:
       - "8080:80"
@@ -166,39 +173,39 @@ services:
     depends_on:
       - backend
 
-
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
-  nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: maaxly-nginx-proxy-manager
-    ports:
-      - "${NPM_HTTP_PORT:-8088}:80"
-      - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
-      - "${NPM_HTTPS_PORT:-8443}:443"
-    environment:
-      DISABLE_IPV6: "true"
-    volumes:
-      - npm_data:/data
-      - npm_letsencrypt:/etc/letsencrypt
-    depends_on:
-      - backend
-    profiles:
-      - prod
+  # Uncomment when you want to manage HTTPS / domains via NPM.
+  # nginx-proxy-manager:
+  #   image: jc21/nginx-proxy-manager:latest
+  #   container_name: maaxly-nginx-proxy-manager
+  #   ports:
+  #     - "${NPM_HTTP_PORT:-8088}:80"
+  #     - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
+  #     - "${NPM_HTTPS_PORT:-8443}:443"
+  #   environment:
+  #     DISABLE_IPV6: "true"
+  #   volumes:
+  #     - npm_data:/data
+  #     - npm_letsencrypt:/etc/letsencrypt
+  #   depends_on:
+  #     - backend
+  #   profiles:
+  #     - prod
 
   # DuckDNS updater (prod)
-  duckdns:
-    image: lscr.io/linuxserver/duckdns:latest
-    container_name: maaxly-duckdns
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-      - SUBDOMAINS=${DUCKDNS_SUBDOMAINS:-your-subdomain}
-      - TOKEN=${DUCKDNS_TOKEN:-CHANGEME}
-      - LOG_FILE=true
-    restart: unless-stopped
-    profiles:
-      - prod
+  # duckdns:
+  #   image: lscr.io/linuxserver/duckdns:latest
+  #   container_name: maaxly-duckdns
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=${TZ:-Etc/UTC}
+  #     - SUBDOMAINS=${DUCKDNS_SUBDOMAINS:-your-subdomain}
+  #     - TOKEN=${DUCKDNS_TOKEN:-CHANGEME}
+  #     - LOG_FILE=true
+  #   restart: unless-stopped
+  #   profiles:
+  #     - prod
 
   # Nightly backups of Kafka, Redis (volumes) and Mongo (mongodump)
   backup:
@@ -207,9 +214,10 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}
-      MONGODB_DB: ${MONGODB_DB:-mvp-db}
+      # Use the same DB name as the application
+      MONGODB_DB: ${MONGODB_DB:-maaxly_prod_db}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
-      TZ: Etc/UTC
+      TZ: ${TZ:-Etc/UTC}
     volumes:
       - ./scripts/backup:/scripts:ro
       - kafka_data:/data/kafka:ro
@@ -242,19 +250,31 @@ volumes:
   backups:
     driver: local
 
-  backend_node_modules:
+  backend_node_modules:   # not used anymore, but safe to keep declared
     driver: local
   frontend_node_modules:
     driver: local
 
 ###
 # Usage notes (env for server/scripts)
-# - Inside containers: use internal URI
-#     MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-maaxly}:${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}@mongodb:27017/${MONGODB_DB:-mvp-db}?authSource=admin
-# - From host (npm run server): use host-mapped URI
-#     MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-maaxly}:${MONGO_INITDB_ROOT_PASSWORD:-maaxlypass}@localhost:27017/${MONGODB_DB:-mvp-db}?authSource=admin
-# - For prod, set strong creds via .env and avoid starting dev-only profiles:
-#     docker compose --profile prod up -d  (dev-only UIs are excluded)
-# - Recommended: use explicit env files per profile
-#     DEV:  docker compose -f docker-compose.kafka.yml --profile dev --env-file .env.dev up -d
-#     PROD: docker compose -f docker-compose.kafka.yml --profile prod --env-file .env.prod up -d
+#
+# You control dev vs prod via the env file you pass to docker compose:
+#
+#   DEV (.env.dev):
+#     MONGO_INITDB_ROOT_USERNAME=maaxly
+#     MONGO_INITDB_ROOT_PASSWORD=maaxlypass
+#     MONGODB_DB=maaxly_dev_db
+#     MONGODB_URI=mongodb://<app_user>:<pwd>@mongodb:27017/maaxly_dev_db?authSource=maaxly_dev_db
+#
+#   PROD (.env.prod):
+#     MONGO_INITDB_ROOT_USERNAME=maaxly
+#     MONGO_INITDB_ROOT_PASSWORD=maaxlypass
+#     MONGODB_DB=maaxly_prod_db
+#     MONGODB_URI=mongodb://maaxly_prod_user:maaxlypass@mongodb:27017/maaxly_prod_db?authSource=admin
+#
+# Suggested commands:
+#   DEV:
+#     docker compose -f docker-compose.kafka.yml --profile dev --env-file .env.dev up -d
+#
+#   PROD:
+#     docker compose -f docker-compose.kafka.yml --profile prod --env-file .env.prod up -d

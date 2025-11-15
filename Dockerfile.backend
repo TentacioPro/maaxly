@@ -1,0 +1,26 @@
+# Stage 1 — Install dependencies
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+# Copy source
+COPY . .
+
+# Build step (optional if not using TypeScript)
+# RUN npm run build
+
+# Stage 2 — production image
+FROM node:20-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy node_modules and source from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app ./
+
+EXPOSE 4000
+
+CMD ["npm", "start"]

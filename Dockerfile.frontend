@@ -1,34 +1,38 @@
-# Stage 1: Build the React application
+# Dockerfile.frontend
+# Stage 1: Build the React (Vite) application
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy package manager files and install dependencies
-# This layer is cached to speed up subsequent builds
+# Copy package files
 COPY package*.json ./
 COPY package-lock.json ./
+
+# IMPORTANT:
+# Do NOT set NODE_ENV=production here, otherwise devDependencies (vite) won’t be installed.
+# Install all deps as per lockfile (including devDependencies like vite)
 RUN npm ci
 
-# Copy the rest of the application source code
+# Copy the rest of the source
 COPY . .
 
-# Set the production API endpoint and build the app
-# This VITE_API_BASE will be baked into the static files
+# Build-time API base (default /api). Override with --build-arg VITE_API_BASE=/api
 ARG VITE_API_BASE=/api
 ENV VITE_API_BASE=${VITE_API_BASE}
+
+# This will now find vite in node_modules/.bin
 RUN npm run build
 
-# Stage 2: Serve the static assets with Nginx
-FROM nginx:stable-alpine
+# Stage 2: Serve the static assets with nginx
+FROM nginx:stable-alpine AS runner
 WORKDIR /usr/share/nginx/html
 
-# Remove default Nginx content
+# remove default static files
 RUN rm -rf ./*
 
-# Copy the built assets from the builder stage
+# copy built files from builder
 COPY --from=builder /app/dist .
 
-# Copy the custom Nginx configuration
-# This config is designed to work well with a Single-Page Application (SPA)
+# Copy nginx config
 COPY nginx.prod.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
