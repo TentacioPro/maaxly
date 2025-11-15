@@ -117,7 +117,14 @@ function App() {
                 <Route path="/about" element={<About />} />
                 <Route path="/opportunities" element={<OpportunitiesPage />} />
                 <Route path="/opportunities/list" element={<OpportunitiesListPage />} />
-                <Route path="/profile" element={<ProfileViewPage />} />
+                <Route 
+                  path="/profile" 
+                  element={
+                    <Protected>
+                      <ProfileViewPage />
+                    </Protected>
+                  } 
+                />
                 <Route
                   path="/onboarding"
                   element={
@@ -126,8 +133,22 @@ function App() {
                     </Protected>
                   }
                 />
-                <Route path="/create-profile/student" element={<CreateProfileStudent />} />
-                <Route path="/create-profile/employer" element={<CreateProfileEmployer />} />
+                <Route 
+                  path="/create-profile/student" 
+                  element={
+                    <Protected>
+                      <CreateProfileStudent />
+                    </Protected>
+                  } 
+                />
+                <Route 
+                  path="/create-profile/employer" 
+                  element={
+                    <Protected>
+                      <CreateProfileEmployer />
+                    </Protected>
+                  } 
+                />
                 <Route
                   path="/create-opportunity"
                   element={
