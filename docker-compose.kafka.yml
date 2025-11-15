@@ -85,6 +85,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # One-shot job: ensure prod app user exists in MongoDB (idempotent)
+  db-init:
+    image: mongo:6.0
+    container_name: maaxly-db-init
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGODB_APP_USER: ${MONGODB_APP_USER:-maaxly_prod_user}
+      MONGODB_APP_PASS: ${MONGODB_APP_PASS:-maaxlypass}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint: ["bash","-lc"]
+    command:
+      - |
+        echo "[db-init] Ensuring app user exists..." && \
+        mongosh admin --host mongodb -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --eval "if (!db.getUser('${MONGODB_APP_USER}')) { db.createUser({user: '${MONGODB_APP_USER}', pwd: '${MONGODB_APP_PASS}', roles:[{role:'root', db:'admin'}]}); print('Created user ${MONGODB_APP_USER}'); } else { print('User ${MONGODB_APP_USER} already exists'); }" && \
+        echo "[db-init] Completed."
+    restart: "no"
+    profiles:
+      - prod
+
   # Mongo Express (UI)
   mongo-express:
     image: mongo-express:1.0.2
@@ -127,6 +149,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       redis:
         condition: service_started
       kafka:
@@ -172,6 +196,27 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+
+  # One-shot job: run seed scripts after DB is ready and user exists
+  seed:
+    image: node:20-alpine
+    container_name: maaxly-seed
+    working_dir: /app
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DB: ${MONGODB_DB}
+      JWT_SECRET: ${JWT_SECRET}
+    command: sh -lc "npm ci --omit=dev && node server/scripts/seed-docker.js || node server/scripts/seed.js"
+    volumes:
+      - ./:/app
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+    profiles:
+      - prod
 
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
   # Uncomment when you want to manage HTTPS / domains via NPM.
