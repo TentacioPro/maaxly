@@ -18,7 +18,9 @@ jobs:
         with:
           host: ${{ secrets.GCP_SSH_HOST }}
           username: ${{ secrets.GCP_SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # use a key file written earlier in the job to avoid multiline secret newline issues
+          key_path: ${{ github.workspace }}/deploy_key
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           port: 22
           script: |
             set -euo pipefail
@@ -50,3 +52,9 @@ jobs:
             docker image prune -f || true
 
             echo "[deploy] Done"
+
+      - name: Cleanup deploy key
+        if: always()
+        run: |
+          rm -f ${{ github.workspace }}/deploy_key
+        shell: bash
