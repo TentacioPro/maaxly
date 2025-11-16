@@ -20,7 +20,6 @@ jobs:
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
           script: |
             set -euo pipefail
             BRANCH="${{ github.ref_name }}"

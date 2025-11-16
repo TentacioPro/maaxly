@@ -161,6 +161,43 @@ app.get(/^\/((?!api\/).)*$/, (req, res) => {
 **File Modified:** `server/index.js`
 
 ### Issue 8: 404 vs 500 Classification Difficulty
+
+## SSH Access — Successful Login (audit)
+
+During the deployment and verification steps an SSH connection to the GCP VM was established successfully. This section records the commands used, observed host keys and public-key fingerprint, and a sanitized log excerpt for future audits.
+
+Connection command used (PowerShell):
+```pwsh
+ssh -vvv -i $env:USERPROFILE\.ssh\id_ed25519 -p 22 maharajanabishekyt@34.133.48.104
+```
+
+Observed server host key fingerprints (added to local `~/.ssh/known_hosts`):
+- ED25519: `SHA256:nVvkgOzxb6rknOtP+io/SMLKmHF5WiO2JuZ4B96f6Og`
+- RSA: `SHA256:Awu/4MFJIVaHSwSBQ0YFqGsbiaWJHovQafG4eNDa9x4`
+- ECDSA: `SHA256:tdrH7+X0R8cdNm849K6dcQXSwlYjdRD4BCcjqH0/ie8`
+
+Client public-key fingerprint (the key offered by the client):
+- ED25519 client key fingerprint: `SHA256:YAfGcP2tjzjJw4NITGmZMH9Bza7JNb024+DjKd8G6XA`
+
+Sanitized verbose log excerpt (auth succeeded):
+```
+debug1: Server host key: ssh-ed25519 SHA256:nVvkgOzxb6rknOtP+io/...
+debug1: Found key in C:\Users\Abishek/.ssh/known_hosts:1
+debug1: Authenticating to 34.133.48.104:22 as 'maharajanabishekyt'
+debug1: Offering public key: C:\Users\Abishek\.ssh\id_ed25519 ED25519 SHA256:YAfG...
+debug1: Server accepts key: C:\Users\Abishek\.ssh\id_ed25519
+Authenticated to 34.133.48.104 using "publickey".
+Last login: Sun Nov 16 12:14:15 2025 from 35.240.214.69
+```
+
+Notes and next steps
+- For GitHub Actions: store the private key in `SSH_PRIVATE_KEY` repository secret and store the host fingerprint in `SSH_FINGERPRINT` (preferred over `known_hosts` for the action version in use).
+- To extract the host fingerprint on your workstation:
+```pwsh
+ssh-keyscan -t ed25519 34.133.48.104 2>$null | ssh-keygen -lf -
+```
+- Do not commit private keys to the repo. If a key is suspected exposed, remove it from `~/.ssh/authorized_keys` and rotate.
+
 **Problem:** Hard to distinguish API missing routes from SPA fallback issues
 
 **Solution Developed:** Classification heuristic table

@@ -282,6 +282,56 @@ docker compose -f docker-compose.kafka.yml --env-file .env.prod logs --tail 50
 
 # Specific service
 docker compose -f docker-compose.kafka.yml --env-file .env.prod logs frontend-prod --tail 20 -f
+
+## 10. SSH Access — Successful Login (record)
+
+This section documents the exact SSH steps, host keys and public-key fingerprints observed during a successful login to the GCP VM. **Do not commit private keys to the repository.** Store private keys in a safe secret store (GitHub Actions Secrets, Vault, or local OS keychain).
+
+Commands used to connect (PowerShell):
+```pwsh
+# test connection using local private key
+ssh -vvv -i $env:USERPROFILE\.ssh\id_ed25519 -p 22 maharajanabishekyt@34.133.48.104
+```
+
+Observed host keys (added to local `~/.ssh/known_hosts`):
+- ED25519 host fingerprint: `SHA256:nVvkgOzxb6rknOtP+io/SMLKmHF5WiO2JuZ4B96f6Og`
+- RSA host fingerprint: `SHA256:Awu/4MFJIVaHSwSBQ0YFqGsbiaWJHovQafG4eNDa9x4`
+- ECDSA host fingerprint: `SHA256:tdrH7+X0R8cdNm849K6dcQXSwlYjdRD4BCcjqH0/ie8`
+
+Local public key fingerprint (the key offered by the client):
+- Client public key (ED25519) fingerprint: `SHA256:YAfGcP2tjzjJw4NITGmZMH9Bza7JNb024+DjKd8G6XA`
+
+Sanitized excerpt of the successful SSH log (for auditing):
+```
+debug1: Server host key: ssh-ed25519 SHA256:nVvkgOzxb6rknOtP+io/SMLKmHF5WiO2JuZ4B96f6Og
+debug1: Found key in C:\Users\Abishek/.ssh/known_hosts:1
+debug1: Authenticating to 34.133.48.104:22 as 'maharajanabishekyt'
+debug1: Offering public key: C:\Users\Abishek\.ssh\id_ed25519 ED25519 SHA256:YAfG... explicit
+debug1: Server accepts key: C:\Users\Abishek\.ssh\id_ed25519
+Authenticated to 34.133.48.104 using "publickey".
+Last login: Sun Nov 16 12:14:15 2025 from 35.240.214.69
+```
+
+What to save as repository secrets (recommended)
+- `SSH_PRIVATE_KEY` — the **private key** (PEM/OpenSSH block). Paste the entire private key file content into the Actions secret (multiline). Never commit this file.
+- `SSH_FINGERPRINT` — the host fingerprint (e.g., `SHA256:nVvkg...`). Use this with actions that accept `fingerprint` to validate host key.
+
+How to extract the host fingerprint locally (PowerShell):
+```pwsh
+ssh-keyscan -t ed25519 34.133.48.104 2>$null | ssh-keygen -lf -
+```
+
+How to add the public key on the VM (if you need to re-add later)
+```bash
+# on the VM (as the deploy user)
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'ssh-ed25519 AAAA... comment' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Security note
+- Never add private key material to the repository. If a private key may have been exposed, remove the corresponding line from `~/.ssh/authorized_keys` on the VM and rotate the key immediately.
+
 ```
 
 ## Notes
