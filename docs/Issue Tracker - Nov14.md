@@ -9,6 +9,39 @@ This log captures the key Docker build/run issues encountered, their root causes
 
 ---
 
+## KEY SUMMARY — Nov16 01am (embedded)
+
+Summary
+-------
+- **Primary objectives:** Automate deploy from git pushes to a GCP VM (build & restart backend/frontend), harden frontend routing to stop repeated `/api/profile/me` calls, remove secrets from history and move to secure storage, and produce a single chronological KEY SUMMARY.
+- **Deployment approach:** SSH-based GitHub Actions workflow that connects to the VM, resets the working copy to the pushed branch, builds images with `--no-cache`, and recreates `backend` and `frontend-prod` containers using `docker compose -f docker-compose.kafka.yml`.
+
+Technical snapshot
+------------------
+- **Frontend:** `src/App.jsx` updated to set axios Authorization from `localStorage.token`, call `/api/profile/me` at startup to set role, and clear token + axios header on 401/403 to prevent circular requests.
+- **Routing / Protection:** Employer/admin pages (e.g., `/create-opportunity`, `/analytics`, `/admin/analytics`) are now guarded by a `RequireRole` wrapper to enforce role-based access and avoid unauthenticated API flooding.
+- **Docker / Compose:** `docker-compose.kafka.yml`, `Dockerfile.frontend`, and `Dockerfile.backend` are the build targets used by the VM. The workflow runs no-cache builds to avoid stale layers.
+
+Problems addressed
+------------------
+- MongoDB authentication failures (code 18) caused by credential/volume drift — standardized `MONGODB_URI`, added `db-init` one-shot patterns and healthchecks.
+- Frontend build failures (`vite: not found`) fixed by ensuring devDependencies are present in the builder stage (do not omit dev deps during build stage).
+- Express `app.get('*')` wildcard caused `path-to-regexp` errors; replaced with a safe SPA fallback that excludes `/api` paths.
+- Repeated `/api/profile/me` calls solved by adding `Protected` and `RequireRole` route guards and clearing tokens on 401/403.
+
+Progress & next steps
+---------------------
+- **Completed:** deploy workflow added, workflow doc created, `src/App.jsx` patched for token/role handling, and this KEY SUMMARY embedded into docs.
+- **Pending / recommended:** purge committed env files from git history (BFG/git-filter-repo), rotate secrets, add remote-side backup/restore for `.env.prod` around `git reset`, and optionally move to registry-based deployments (build in Actions, pull on VM) and add health-check steps after container restart.
+
+Safety notes
+------------
+- The workflow runs `git reset --hard origin/<branch>` on the remote; back up any uncommitted files you care about. The workflow does not transfer env files — keep them on the VM or use a secrets manager.
+- After purging secrets from history, rotate credentials and notify collaborators to re-clone.
+
+If you want, I can: prepare the git-filter-repo/BFG commands and a rotation checklist, or add a pre-reset backup/restore snippet to the workflow's remote script.
+
+
 ## Issue 1: MongoDB authentication failed (code 18)
 - Symptom:
   - Backend logs: `MongoServerError: Authentication failed (code 18)` and container restart loop.
@@ -216,22 +249,38 @@ This log captures the key Docker build/run issues encountered, their root causes
 #### Issue: /api/profile/me endpoint flooding 404 requests  
 - **Symptom:** Unauthenticated users accessing profile pages, causing excessive 404 API calls
 - **Root Cause:** Missing authentication guards on React routes - users could navigate to profile pages without being logged in
-- **Fix Applied:** Added Protected component wrapper to sensitive routes
+- **Initial Fix Applied:** Added `Protected` component wrapper to sensitive routes so unauthenticated users are redirected to login instead of the app repeatedly calling `/api/profile/me`.
 - **File Modified:** `src/App.jsx`
-- **Code Changes:**
-  ```jsx
-  // Added Protected wrapper to routes:
-  <Route path="/profile" element={<Protected><Profile /></Protected>} />
-  <Route path="/create-profile/student" element={<Protected><CreateProfile userType="student" /></Protected>} />
-  <Route path="/create-profile/employer" element={<Protected><CreateProfile userType="employer" /></Protected>} />
-  ```
+- **Code Changes (initial):**
 - **Status:** Resolved ✅
 
-#### Issue: Kafka connectivity health checks
-- **Symptom:** Backend starting before Kafka broker ready, causing connection errors
-- **Root Cause:** Missing health checks and service dependencies in Docker Compose
-- **Fix Applied:** Added simplified Kafka health check using netcat
-- **File Modified:** `docker-compose.kafka.yml`
+**Follow-up (employer & admin roles):**
+- **Symptom:** After the initial fix the same circular/repetitive behavior reappeared for employer and admin pages (they were still reachable in some authenticated branches and continued to trigger `/profile/me`).
+- **Root Cause:** Role-specific routes were not fully protected by role checks, and an invalid/expired token could clear role state but remain in storage — leaving the app in an authenticated routing branch that kept issuing protected requests.
+- **Fix Applied:**
+  - Tightened route protection by using a `RequireRole` wrapper for employer/admin pages (instead of the generic `Protected` wrapper) so pages like `/create-opportunity`, `/analytics`, and `/admin/analytics` require specific roles (`employer` or `admin`).
+  - Made the client clear the stored token and axios Authorization header when the `/api/profile/me` call returns `401` or `403`. This forces the app back to the unauthenticated routing branch and stops the repeated calls.
+- **File Modified:** `src/App.jsx`
+- **Code Changes (examples):**
+  ```jsx
+  // Role-guarded routes
+  <Route path="/create-opportunity" element={<RequireRole allowed={["employer"]}><CreateOpportunityPage/></RequireRole>} />
+  <Route path="/analytics" element={<RequireRole allowed={["employer","admin"]}><EmployerAnalyticsPage/></RequireRole>} />
+  <Route path="/admin/analytics" element={<RequireRole allowed={["admin"]}><AdminAnalyticsPage/></RequireRole>} />
+
+  // Clearing token on unauthorized profile check (client-side)
+  try {
+    await axios.get('/api/profile/me')
+  } catch (err) {
+    if (err?.response?.status === 401 || err?.response?.status === 403) {
+      localStorage.removeItem('token')
+      delete axios.defaults.headers.common.Authorization
+      // update app state to unauthenticated (causes route fallback)
+    }
+  }
+  ```
+
+- **Status:** Resolved ✅
 - **Code Changes:**
   ```yaml
   kafka:
@@ -849,6 +898,134 @@ This section enumerates every distinct struggle encountered so far (build, runti
 - Clean up NPM Advanced config; reattempt LE certificate; verify ports.
 - Formalize PORTS.md & profile log prefixing.
 - Begin credential rotation plan (Mongo app user + JWT secret).
+
+---
+
+## Nov 15, 2025 - External Access & Port Forwarding Issues Resolution
+
+### Issue: UPnP Port Forwarding Failure
+- **Symptom:** UPnP script ran successfully but failed to add port mappings with "You cannot call a method on a null-valued expression"
+- **Root Cause:** Router supports UPnP but doesn't allow automatic port forwarding configuration (common with consumer-grade routers)
+- **Fix Applied:** Switched to manual port forwarding approach
+- **File Modified:** `setup-upnp-forwarding.ps1` (fixed Unicode character parsing issue)
+- **Code Changes:** Replaced Unicode arrow `→` with ASCII `->` and escaped colon in output string
+- **Status:** Resolved ✅ (identified need for manual configuration)
+
+### Issue: Router Port Forwarding Navigation Issues
+- **Symptom:** TP-Link router only shows "Port Triggering" menu, no "Port Forwarding" or "Virtual Servers" option visible
+- **Root Cause:** Older TP-Link router model with different interface layout - "Virtual Servers" is the correct term for port forwarding
+- **Fix Applied:** Created comprehensive router setup guides and troubleshooting documentation
+- **Files Created:** 
+  - `TP-LINK_PORT_TRIGGERING_FIX.md`
+  - `MANUAL_PORT_FORWARDING_GUIDE.md`
+  - `ROUTER_SETUP_GUIDE.md`
+- **Status:** Documentation Complete ✅ (user needs to configure manually)
+
+### Issue: External Connectivity Testing
+- **Symptom:** Local services running (ports 8088, 8443, 81 listening) but external access shows "TIMEOUT"
+- **Root Cause:** Port forwarding not configured in router - traffic not reaching internal Docker containers
+- **Fix Applied:** Created automated testing script and identified public IP
+- **File Modified:** `setup-port-forwarding-simple.ps1` (enhanced with external testing)
+- **Public IP Identified:** `123.201.177.58`
+- **Status:** Testing Framework Ready ✅ (awaiting router configuration)
+
+### Issue: PowerShell Script Syntax Error
+- **Symptom:** `ParserError: Variable reference is not valid. ':' was not followed by a valid variable name character`
+- **Root Cause:** Unicode characters and unescaped colons in PowerShell string interpolation
+- **Fix Applied:** Replaced Unicode arrow with ASCII and properly escaped special characters
+- **File Modified:** `setup-upnp-forwarding.ps1`
+- **Code Changes:**
+  ```powershell
+  # Before (causing error):
+  Write-ColoredOutput "✅ $($Port.Name): $($Port.External) → $LocalIP:$($Port.Internal)" "Success"
+  
+  # After (fixed):
+  Write-ColoredOutput "✅ $($Port.Name): $($Port.External) -> $LocalIP`:$($Port.Internal)" "Success"
+  ```
+- **Status:** Resolved ✅
+
+### Manual Port Forwarding Requirements
+- **Required Ports:** 8088 (HTTP), 8443 (HTTPS), 81 (NPM Admin)
+- **Internal IP:** `192.168.0.112` (Docker host)
+- **Router Interface:** Look for "Virtual Servers" under Advanced → NAT or Network → NAT
+- **Configuration:**
+  ```
+  Service Name: Maaxly-HTTP, External Port: 8088, Internal IP: 192.168.0.112, Internal Port: 8088, Protocol: TCP
+  Service Name: Maaxly-HTTPS, External Port: 8443, Internal IP: 192.168.0.112, Internal Port: 8443, Protocol: TCP  
+  Service Name: NPM-Admin, External Port: 81, Internal IP: 192.168.0.112, Internal Port: 81, Protocol: TCP
+  ```
+
+### Testing Commands
+```powershell
+# Test local connectivity
+.\setup-port-forwarding-simple.ps1 -Test
+
+# Expected after router config:
+# [SUCCESS] External access on port 8088: OPEN ✅
+# [SUCCESS] External access on port 8443: OPEN ✅
+# [SUCCESS] External access on port 81: OPEN ✅
+```
+
+### Access URLs (After Port Forwarding)
+- **Maaxly App:** `http://123.201.177.58:8088`
+- **NPM Admin:** `http://123.201.177.58:81`
+
+### Key Lessons Learned
+1. **UPnP Limitations:** Many consumer routers support UPnP discovery but not automatic port forwarding
+2. **Router Model Variations:** TP-Link interfaces vary significantly by model - "Virtual Servers" is the key term
+3. **Unicode in PowerShell:** Avoid Unicode characters in scripts that need cross-platform compatibility
+4. **Testing Framework:** Automated scripts are essential for verifying external connectivity
+5. **Documentation:** Comprehensive guides prevent repeated troubleshooting cycles
+
+### Outstanding Tasks
+- [ ] Configure manual port forwarding in TP-Link router (Virtual Servers)
+- [ ] Test external access to all three ports
+- [ ] Configure SSL certificate in Nginx Proxy Manager
+- [ ] Update DuckDNS with current IP if needed
+- [ ] Verify end-to-end functionality from external network
+
+### Next Steps Priority
+1. **High Priority:** Configure router port forwarding manually
+2. **Medium Priority:** Test external access and SSL setup
+3. **Low Priority:** Optimize PowerShell scripts and add more automation
+
+---
+
+## Consolidated External Access Struggle Index
+
+### N. Network & External Access
+55. (UPnP Auto-Failure) Router supports UPnP but blocks automatic forwarding → Manual configuration required (Resolved - Process Identified).
+56. (Router Interface Confusion) "Port Triggering" vs "Virtual Servers" terminology → Created comprehensive guides (Resolved - Documentation Complete).
+57. (Port Forwarding Missing) No external access despite local services running → Router configuration pending (Pending - User Action Required).
+58. (Public IP Detection) Need external IP for testing URLs → Automated detection implemented (Resolved).
+59. (PowerShell Unicode Issues) Special characters causing parsing errors → ASCII alternatives used (Resolved).
+60. (Connectivity Testing) Manual testing tedious → Automated script created (Resolved - Tool Available).
+
+### O. Router-Specific Issues
+61. (TP-Link Model Variations) Different menu layouts across router versions → Multiple navigation paths documented (Resolved - Guidance Provided).
+62. (Virtual Servers Location) Hidden under Advanced/Network menus → Step-by-step guides created (Resolved - Documentation Complete).
+63. (Port Mapping Confusion) External vs Internal port terminology → Clear examples provided (Resolved - Examples Available).
+
+### P. Automation & Tooling
+64. (UPnP Script Unicode) Unicode characters breaking PowerShell → ASCII replacements implemented (Resolved).
+65. (External Test Automation) Manual port checking time-consuming → PowerShell automation created (Resolved).
+66. (Router Setup Guides) Lack of model-specific instructions → Comprehensive documentation added (Resolved).
+
+### Quick External Access Setup Checklist
+- [x] Local services verified running (8088, 8443, 81)
+- [x] Public IP identified (123.201.177.58)
+- [x] UPnP attempted (failed as expected)
+- [x] Router model identified (TP-Link with Port Triggering)
+- [x] Manual setup guides created
+- [ ] Router port forwarding configured
+- [ ] External access tested
+- [ ] SSL certificate configured
+- [ ] Domain (maaxly-prod-mvp.duckdns.org) tested
+
+---
+
+## Summary
+External access setup identified as the final major hurdle. UPnP automation failed (expected for consumer routers), requiring manual router configuration. Comprehensive documentation and testing tools created to facilitate the process. Once router port forwarding is configured, the Maaxly application will be accessible from the internet.
 
 ---
 

@@ -75,7 +75,7 @@ services:
     image: mongo:6.0
     container_name: maaxly-mongodb
     ports:
-      - "27017:27017"  # expose for host access in dev (you can remove in real prod)
+      - "27017:27017" # expose for host access in dev (you can remove in real prod)
     environment:
       # Root user used only for initial setup / admin
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-maaxly}
@@ -86,7 +86,11 @@ services:
       - mongo_data:/data/db
       - mongo_config:/data/configdb
     healthcheck:
-      test: ["CMD-SHELL","mongosh --eval 'db.adminCommand({ping:1})' --quiet || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --eval 'db.adminCommand({ping:1})' --quiet || exit 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -103,7 +107,7 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-    entrypoint: ["bash","-lc"]
+    entrypoint: ["bash", "-lc"]
     command:
       - |
         echo "[db-init] Ensuring app user exists..." && \
@@ -225,28 +229,28 @@ services:
       - prod
 
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
-  nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: maaxly-nginx-proxy-manager
-    ports:
-      - "${NPM_HTTP_PORT:-8088}:80"
-      - "${NPM_ADMIN_PORT:-81}:81"   # admin UI
-      - "${NPM_HTTPS_PORT:-8443}:443"
-    environment:
-      DISABLE_IPV6: "true"
-    volumes:
-      - npm_data:/data
-      - npm_letsencrypt:/etc/letsencrypt
-    depends_on:
-      - backend
-      - frontend-prod
-    profiles:
-      - prod
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+nginx-proxy-manager:
+  image: jc21/nginx-proxy-manager:latest
+  container_name: maaxly-nginx-proxy-manager
+  ports:
+    - "80:80" # public HTTP
+    - "81:81" # admin UI
+    - "443:443" # public HTTPS
+  environment:
+    DISABLE_IPV6: "true"
+  volumes:
+    - npm_data:/data
+    - npm_letsencrypt:/etc/letsencrypt
+  depends_on:
+    - backend
+    - frontend-prod
+  profiles:
+    - prod
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
 
   # DuckDNS updater (prod)
   duckdns:
@@ -287,7 +291,7 @@ services:
       - kafka_data:/data/kafka:ro
       - redis_data:/data/redis:ro
       - backups:/backups
-    command: ["bash","/scripts/backup.sh"]
+    command: ["bash", "/scripts/backup.sh"]
     depends_on:
       - mongodb
       - redis
@@ -314,11 +318,10 @@ volumes:
   backups:
     driver: local
 
-  backend_node_modules:   # not used anymore, but safe to keep declared
+  backend_node_modules: # not used anymore, but safe to keep declared
     driver: local
   frontend_node_modules:
     driver: local
-
 ###
 # Usage notes (env for server/scripts)
 #

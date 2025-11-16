@@ -55,7 +55,16 @@ function App() {
               setRole(null)
               localStorage.removeItem('role')
             }
-          } catch {
+          } catch (err) {
+            // If token is invalid or expired, clear it so app falls back to unauthenticated state.
+            try {
+              const status = err?.response?.status
+              if (status === 401 || status === 403) {
+                localStorage.removeItem('token')
+                delete axios.defaults.headers.common.Authorization
+                setToken(null)
+              }
+            } catch (e) {}
             setRole(null)
             localStorage.removeItem('role')
           }
@@ -194,17 +203,17 @@ function App() {
                 <Route
                   path="/analytics"
                   element={
-                    <Protected>
+                    <RequireRole allowed={["employer","admin"]}>
                       <EmployerAnalyticsPage />
-                    </Protected>
+                    </RequireRole>
                   }
                 />
                 <Route
                   path="/admin/analytics"
                   element={
-                    <Protected>
+                    <RequireRole allowed={["admin"]}>
                       <AdminAnalyticsPage />
-                    </Protected>
+                    </RequireRole>
                   }
                 />
               </Route>

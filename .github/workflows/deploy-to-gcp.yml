@@ -1,0 +1,53 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    # deploy only when pushing to the gcp-deploy-nov15 branch
+    branches: ['gcp-deploy-nov15']
+
+jobs:
+  deploy:
+    name: Deploy to GCP VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to remote via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.GCP_SSH_HOST }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+          script: |
+            set -euo pipefail
+            BRANCH="${{ github.ref_name }}"
+            REMOTE_DIR="${{ secrets.REMOTE_REPO_DIR }}"
+
+            echo "[deploy] Deploying branch: ${BRANCH} to ${REMOTE_DIR}"
+
+            if [ ! -d "${REMOTE_DIR}" ]; then
+              echo "[deploy] Remote repo path does not exist: ${REMOTE_DIR}"
+              exit 1
+            fi
+
+            cd "${REMOTE_DIR}"
+            echo "[deploy] Fetching latest..."
+            git fetch --all --prune
+
+            # Checkout the pushed branch and hard-reset to remote
+            git checkout "${BRANCH}" || git checkout -B "${BRANCH}" origin/${BRANCH}
+            git reset --hard origin/${BRANCH}
+
+            echo "[deploy] Building backend and frontend images (no-cache)"
+            docker compose -f docker-compose.kafka.yml build --no-cache backend frontend-prod
+
+            echo "[deploy] Recreating backend and frontend-prod containers"
+            docker compose -f docker-compose.kafka.yml up -d --no-deps --force-recreate backend frontend-prod
+
+            echo "[deploy] Pruning unused images"
+            docker image prune -f || true
+
+            echo "[deploy] Done"
