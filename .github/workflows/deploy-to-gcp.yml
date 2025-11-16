@@ -58,3 +58,15 @@ jobs:
         run: |
           rm -f ${{ github.workspace }}/deploy_key
         shell: bash
+
+      - name: Prepare deploy key
+        id: prepare-key
+        run: |
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY_BASE64 }}" ]; then
+            echo "No SSH_PRIVATE_KEY_BASE64 secret found" >&2
+            exit 1
+          fi
+          echo "Decoding private key to ${{ github.workspace }}/deploy_key"
+          echo "${{ secrets.SSH_PRIVATE_KEY_BASE64 }}" | base64 -d > ${{ github.workspace }}/deploy_key
+          chmod 600 ${{ github.workspace }}/deploy_key
+        shell: bash
