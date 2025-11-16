@@ -229,7 +229,7 @@ services:
       - prod
 
   # Nginx Proxy Manager for SSL and reverse proxy (prod)
-nginx-proxy-manager:
+  nginx-proxy-manager:
   image: jc21/nginx-proxy-manager:latest
   container_name: maaxly-nginx-proxy-manager
   ports:
